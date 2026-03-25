@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.env
+venv/
+.venv/
+
+# Streamlit secrets (NEVER commit this — add via Streamlit Cloud UI instead)
+.streamlit/secrets.toml
+
+# Claude Code local settings
+.claude/
+
+# Backups (too large for git)
+data_backup_*/
+data_backups/
+exports/
+
+# Temp / OS
+.DS_Store
+*.tmp
+Thumbs.db
+
+# PDFs and images generated locally
+documento_preenchido*.pdf
+documento_preenchido*.png
