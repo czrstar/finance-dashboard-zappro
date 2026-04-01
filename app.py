@@ -1726,7 +1726,11 @@ elif page == "📊 Orçamento":
     else:
         st.info(f"`despesas_{mes_oc}.csv` não existe; será criado ao salvar.")
 
-    _oc_edit_df = df_oc[["descricao", "categoria", "previsto"]].copy() if not df_oc.empty else pd.DataFrame(columns=["descricao", "categoria", "previsto"])
+    if not df_oc.empty:
+        _oc_edit_df = df_oc[["descricao", "categoria", "previsto", "real"]].copy()
+        _oc_edit_df["real"] = pd.to_numeric(_oc_edit_df["real"], errors="coerce").fillna(0.0)
+    else:
+        _oc_edit_df = pd.DataFrame(columns=["descricao", "categoria", "previsto", "real"])
 
     edited_oc = st.data_editor(
         _oc_edit_df,
@@ -1734,24 +1738,29 @@ elif page == "📊 Orçamento":
             "descricao": st.column_config.TextColumn("Descrição"),
             "categoria": st.column_config.SelectboxColumn("Categoria", options=_oc_cat_opts),
             "previsto": st.column_config.NumberColumn("Previsto (R$)", min_value=0.0, format="%.2f"),
+            "real": st.column_config.NumberColumn("Real (R$)", min_value=0.0, format="%.2f"),
         },
         num_rows="dynamic", use_container_width=True, hide_index=True, key=f"budget_editor_{mes_oc}",
     )
 
-    _oc_total = pd.to_numeric(edited_oc.get("previsto", pd.Series([])), errors="coerce").fillna(0).sum()
-    st.metric("Total Previsto", fmt(_oc_total))
+    # Totals
+    _oc_prev_total = pd.to_numeric(edited_oc.get("previsto", pd.Series([])), errors="coerce").fillna(0).sum()
+    _oc_real_total = pd.to_numeric(edited_oc.get("real", pd.Series([])), errors="coerce").fillna(0).sum()
+    _oc_diff = _oc_real_total - _oc_prev_total
+
+    mc1, mc2, mc3 = st.columns(3)
+    with mc1:
+        st.metric("Total Previsto", fmt(_oc_prev_total))
+    with mc2:
+        st.metric("Total Real", fmt(_oc_real_total))
+    with mc3:
+        st.metric("Diferença", fmt(_oc_diff), delta=f"{_oc_diff:+,.2f}".replace(",", "."))
 
     if st.button("💾 Salvar Orçamento", type="primary"):
-        _oc_real_map = {
-            (str(r["descricao"]).strip(), str(r["categoria"]).strip()): float(r.get("real", 0))
-            for _, r in df_oc.iterrows() if str(r.get("descricao", "")).strip()
-        }
         _oc_save = edited_oc.copy()
         _oc_save["descricao"] = _oc_save.get("descricao", pd.Series([""] * len(_oc_save))).fillna("").astype(str)
         _oc_save["categoria"] = _oc_save.get("categoria", pd.Series([""] * len(_oc_save))).fillna("").astype(str)
-        _oc_save["real"] = _oc_save.apply(
-            lambda r: _oc_real_map.get((r.get("descricao", "").strip(), r.get("categoria", "").strip()), 0.0), axis=1,
-        )
+        _oc_save["real"] = pd.to_numeric(_oc_save.get("real", pd.Series([0.0] * len(_oc_save))), errors="coerce").fillna(0.0)
         fu.save_budget_csv(mes_oc, _oc_save, MONTH_DIR)
         st.success(f"✅ Salvo `despesas_{mes_oc}.csv`.")
         st.rerun()
