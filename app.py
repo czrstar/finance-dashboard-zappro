@@ -796,37 +796,32 @@ if page == "📊 Dashboard":
             st.info("Sem dados de despesas para este mês.")
 
     with col_chart2:
-        st.markdown("#### 📊 Receitas vs Despesas — Últimos Meses")
-        # Only show months that have a budget CSV file (real user data)
-        last_6 = _get_last_n_months(current_month, 6)
-
-        chart_rows = []
-        for m in last_6:
-            # Only include months that have an actual budget CSV file
-            _m_csv_path = MONTH_DIR / f"despesas_{m}.csv"
-            if not _m_csv_path.exists():
-                continue
-            _m_base = fu.safe_load_month_csv(m, MONTH_DIR)
-            # Skip months where all real values are zero and there are no transactions
-            _m_base_total = _m_base["real"].sum() if not _m_base.empty and "real" in _m_base.columns else 0.0
-            _m_trans = fu.load_transactions(m)
-            _m_trans_total = _m_trans["valor"].sum() if not _m_trans.empty else 0.0
-            _m_inst = fu.get_installments_for_month(m)
-            _m_inst_total = _m_inst["valor_parcela"].sum() if not _m_inst.empty else 0.0
-            _m_desp = _m_base_total + _m_trans_total + _m_inst_total
-            _m_rec = df_receitas[df_receitas["mes"] == m]["valor"].sum() if not df_receitas.empty else 0.0
-            chart_rows.append({
-                "mes": month_label(m),
-                "Receitas": _m_rec,
-                "Despesas": _m_desp,
-            })
-        # If no data at all, show just current month
-        if not chart_rows:
-            chart_rows.append({
-                "mes": month_label(current_month),
-                "Receitas": receita_mes,
-                "Despesas": total_despesas,
-            })
+        st.markdown("#### 📊 Receitas vs Despesas — Evolução Mensal")
+        # Show current month and up to 5 future months as they accumulate
+        # Start fresh from current_month — no past months
+        chart_rows = [{
+            "mes": month_label(current_month),
+            "Receitas": receita_mes,
+            "Despesas": total_despesas,
+        }]
+        # Add previous months only if they are >= current_month (i.e. none for now)
+        # As user closes months, future visits will show history from current_month onward
+        _hist_start = current_month  # anchor: only show from this month forward
+        _check = _next_month(current_month)
+        for _ in range(5):
+            _m_csv_path = MONTH_DIR / f"despesas_{_check}.csv"
+            if _m_csv_path.exists():
+                _m_base = fu.safe_load_month_csv(_check, MONTH_DIR)
+                _m_base_total = _m_base["real"].sum() if not _m_base.empty and "real" in _m_base.columns else 0.0
+                _m_trans = fu.load_transactions(_check)
+                _m_trans_total = _m_trans["valor"].sum() if not _m_trans.empty else 0.0
+                _m_inst = fu.get_installments_for_month(_check)
+                _m_inst_total = _m_inst["valor_parcela"].sum() if not _m_inst.empty else 0.0
+                _m_desp = _m_base_total + _m_trans_total + _m_inst_total
+                _m_rec = df_receitas[df_receitas["mes"] == _check]["valor"].sum() if not df_receitas.empty else 0.0
+                if _m_desp > 0 or _m_rec > 0:
+                    chart_rows.append({"mes": month_label(_check), "Receitas": _m_rec, "Despesas": _m_desp})
+            _check = _next_month(_check)
 
         chart_df = pd.DataFrame(chart_rows)
 
