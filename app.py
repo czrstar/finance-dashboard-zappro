@@ -797,11 +797,17 @@ if page == "📊 Dashboard":
 
     with col_chart2:
         st.markdown("#### 📊 Receitas vs Despesas — Últimos Meses")
+        # Only show months that have a budget CSV file (real user data)
         last_6 = _get_last_n_months(current_month, 6)
 
         chart_rows = []
         for m in last_6:
+            # Only include months that have an actual budget CSV file
+            _m_csv_path = MONTH_DIR / f"despesas_{m}.csv"
+            if not _m_csv_path.exists():
+                continue
             _m_base = fu.safe_load_month_csv(m, MONTH_DIR)
+            # Skip months where all real values are zero and there are no transactions
             _m_base_total = _m_base["real"].sum() if not _m_base.empty and "real" in _m_base.columns else 0.0
             _m_trans = fu.load_transactions(m)
             _m_trans_total = _m_trans["valor"].sum() if not _m_trans.empty else 0.0
@@ -809,14 +815,12 @@ if page == "📊 Dashboard":
             _m_inst_total = _m_inst["valor_parcela"].sum() if not _m_inst.empty else 0.0
             _m_desp = _m_base_total + _m_trans_total + _m_inst_total
             _m_rec = df_receitas[df_receitas["mes"] == m]["valor"].sum() if not df_receitas.empty else 0.0
-            # Only include months that have any data
-            if _m_desp > 0 or _m_rec > 0:
-                chart_rows.append({
-                    "mes": month_label(m),
-                    "Receitas": _m_rec,
-                    "Despesas": _m_desp,
-                })
-        # If no historical data, show just current month
+            chart_rows.append({
+                "mes": month_label(m),
+                "Receitas": _m_rec,
+                "Despesas": _m_desp,
+            })
+        # If no data at all, show just current month
         if not chart_rows:
             chart_rows.append({
                 "mes": month_label(current_month),
@@ -1287,22 +1291,24 @@ elif page == "📋 Contas a Pagar":
     bills = fu.sync_bills_for_month(bills_month)
 
     if bills:
-        total_bills = sum(b["valor"] for b in bills)
-        total_pago = sum(b["valor"] for b in bills if b["pago"])
+        total_bills = sum(b["valor_real"] for b in bills)
+        total_pago = sum(b["valor_real"] for b in bills if b["pago"])
         total_pendente = total_bills - total_pago
 
         # Summary badges
-        st.markdown(f"""
-        <div style="display:flex;gap:10px;margin:16px 0;flex-wrap:wrap;">
-            <span class="summary-badge badge-green">✓ Pago: {fmt(total_pago)}</span>
-            <span class="summary-badge badge-red">✗ Pendente: {fmt(total_pendente)}</span>
-            <span class="summary-badge badge-gray">Total: {fmt(total_bills)}</span>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(
+            f'<div style="display:flex;gap:10px;margin:16px 0;flex-wrap:wrap;">'
+            f'<span class="summary-badge badge-green">✓ Pago: {fmt(total_pago)}</span>'
+            f'<span class="summary-badge badge-red">✗ Pendente: {fmt(total_pendente)}</span>'
+            f'<span class="summary-badge badge-gray">Total: {fmt(total_bills)}</span>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
 
-        # Bills table
+        # Bills table — with editable value
+        st.caption("💡 Ajuste o valor real de contas variáveis (água, luz, etc.) antes de marcar como pago.")
         for bill in sorted(bills, key=lambda x: x["dia_vencimento"]):
-            c1, c2, c3, c4, c5, c6 = st.columns([3, 2, 1.5, 2, 1.5, 1])
+            c1, c2, c3, c4, c5, c6 = st.columns([2.5, 1.5, 1, 2, 1.5, 1])
             with c1:
                 st.markdown(f"**{bill['nome']}**")
             with c2:
@@ -1310,7 +1316,18 @@ elif page == "📋 Contas a Pagar":
             with c3:
                 st.write(f"Dia {bill['dia_vencimento']}")
             with c4:
-                st.write(fmt(bill['valor']))
+                new_val = st.number_input(
+                    "Valor (R$)",
+                    min_value=0.0,
+                    step=10.0,
+                    value=float(bill["valor_real"]),
+                    key=f"bill_val_{bill['id']}",
+                    label_visibility="collapsed",
+                    format="%.2f",
+                )
+                if abs(new_val - float(bill["valor_real"])) > 0.01:
+                    fu.update_bill_valor_real(bills_month, bill["id"], new_val)
+                    st.rerun()
             with c5:
                 pago = bill["pago"]
                 if st.checkbox("Pago?", value=pago, key=f"bill_pago_{bill['id']}"):

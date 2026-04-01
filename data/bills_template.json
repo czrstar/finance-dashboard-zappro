@@ -1,10 +1,26 @@
 [
   {
+    "id": "174819de-c5d1-428d-aabc-b71b088a0bce",
+    "nome": "Pagamento de Veículo",
+    "categoria": "Transporte",
+    "dia_vencimento": 5,
+    "valor": 344.0,
+    "ativo": true
+  },
+  {
     "id": "9d582981-aba5-4c23-a6dd-44425852b97a",
-    "nome": "Aluguel/IPTU",
+    "nome": "Aluguel",
     "categoria": "Moradia",
     "dia_vencimento": 10,
     "valor": 1200.0,
+    "ativo": true
+  },
+  {
+    "id": "e442edfe-69d1-4f8a-9b6d-8b6c88284b61",
+    "nome": "Sofá (parcela)",
+    "categoria": "Moradia",
+    "dia_vencimento": 10,
+    "valor": 467.0,
     "ativo": true
   },
   {
@@ -32,27 +48,11 @@
     "ativo": true
   },
   {
-    "id": "174819de-c5d1-428d-aabc-b71b088a0bce",
-    "nome": "Pagamento de Veículo",
-    "categoria": "Transporte",
-    "dia_vencimento": 5,
-    "valor": 344.0,
-    "ativo": true
-  },
-  {
-    "id": "e442edfe-69d1-4f8a-9b6d-8b6c88284b61",
-    "nome": "Sofá (parcela)",
+    "id": "c1a3f001-1111-4aaa-bbbb-000000000001",
+    "nome": "Luz ADM",
     "categoria": "Moradia",
-    "dia_vencimento": 10,
-    "valor": 467.0,
-    "ativo": true
-  },
-  {
-    "id": "f2fc3da1-f70b-439a-8861-7e8857678c26",
-    "nome": "Faxina",
-    "categoria": "Casa",
-    "dia_vencimento": 25,
-    "valor": 300.0,
+    "dia_vencimento": 20,
+    "valor": 50.0,
     "ativo": true
   },
   {
@@ -69,6 +69,38 @@
     "categoria": "Gastos profissionais",
     "dia_vencimento": 20,
     "valor": 81.0,
+    "ativo": true
+  },
+  {
+    "id": "f2fc3da1-f70b-439a-8861-7e8857678c26",
+    "nome": "Faxina",
+    "categoria": "Casa",
+    "dia_vencimento": 25,
+    "valor": 300.0,
+    "ativo": true
+  },
+  {
+    "id": "c1a3f002-2222-4bbb-cccc-000000000002",
+    "nome": "Corte de Cabelo Renato",
+    "categoria": "Cuidados pessoais",
+    "dia_vencimento": 15,
+    "valor": 50.0,
+    "ativo": true
+  },
+  {
+    "id": "c1a3f003-3333-4ccc-dddd-000000000003",
+    "nome": "IPTV",
+    "categoria": "Entretenimento",
+    "dia_vencimento": 10,
+    "valor": 35.0,
+    "ativo": true
+  },
+  {
+    "id": "c1a3f004-4444-4ddd-eeee-000000000004",
+    "nome": "Suplementos",
+    "categoria": "Saúde",
+    "dia_vencimento": 10,
+    "valor": 150.0,
     "ativo": true
   }
 ]

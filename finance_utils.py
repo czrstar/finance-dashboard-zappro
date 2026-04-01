@@ -1215,13 +1215,25 @@ def remove_bill_template(bill_id: str) -> None:
     save_bills_template(bills)
 
 def load_bills_status(month: str) -> dict:
-    """Load payment status for a given month. Returns dict {bill_id: bool}."""
+    """Load payment status for a given month.
+    Returns dict {bill_id: {"pago": bool, "valor_real": float|None}}.
+    Handles legacy format where value was just a bool."""
     p = BILLS_STATUS_DIR / f"{month}.json"
     if not p.exists() or p.stat().st_size == 0:
         return {}
     try:
         with open(p, "r", encoding="utf-8") as f:
-            return json.load(f)
+            raw = json.load(f)
+        # Migrate legacy bool format to new dict format
+        result = {}
+        for k, v in raw.items():
+            if isinstance(v, bool):
+                result[k] = {"pago": v, "valor_real": None}
+            elif isinstance(v, dict):
+                result[k] = v
+            else:
+                result[k] = {"pago": False, "valor_real": None}
+        return result
     except Exception:
         return {}
 
@@ -1233,7 +1245,7 @@ def save_bills_status(month: str, status: dict) -> None:
         json.dump(status, f, ensure_ascii=False, indent=2)
 
 def sync_bills_for_month(month: str) -> list[dict]:
-    """Get bills for a month with their payment status. Syncs template to month."""
+    """Get bills for a month with their payment status and actual values."""
     template = load_bills_template()
     status = load_bills_status(month)
     result = []
@@ -1241,16 +1253,29 @@ def sync_bills_for_month(month: str) -> list[dict]:
         if not bill.get("ativo", True):
             continue
         bill_id = bill["id"]
+        bill_status = status.get(bill_id, {"pago": False, "valor_real": None})
+        valor_real = bill_status.get("valor_real")
         result.append({
             **bill,
-            "pago": status.get(bill_id, False),
+            "pago": bill_status.get("pago", False),
+            "valor_real": valor_real if valor_real is not None else bill["valor"],
         })
     return result
 
 def toggle_bill_paid(month: str, bill_id: str) -> None:
     """Toggle a bill's paid status for a given month."""
     status = load_bills_status(month)
-    status[bill_id] = not status.get(bill_id, False)
+    entry = status.get(bill_id, {"pago": False, "valor_real": None})
+    entry["pago"] = not entry.get("pago", False)
+    status[bill_id] = entry
+    save_bills_status(month, status)
+
+def update_bill_valor_real(month: str, bill_id: str, valor_real: float) -> None:
+    """Update the actual value for a bill in a specific month."""
+    status = load_bills_status(month)
+    entry = status.get(bill_id, {"pago": False, "valor_real": None})
+    entry["valor_real"] = valor_real
+    status[bill_id] = entry
     save_bills_status(month, status)
 
 

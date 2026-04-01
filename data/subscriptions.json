@@ -10,16 +10,6 @@
     "ativo": true
   },
   {
-    "id": "0f576c65-d63d-4aa2-95f0-a2c0cb9d8645",
-    "nome": "IPTV",
-    "valor": 35.0,
-    "dia_desconto": 10,
-    "site": "",
-    "email": "",
-    "obs": "",
-    "ativo": true
-  },
-  {
     "id": "bd300cf6-6f46-42a9-a669-a102af85472b",
     "nome": "ChatGPT",
     "valor": 99.0,
