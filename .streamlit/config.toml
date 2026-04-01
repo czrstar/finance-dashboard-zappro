@@ -1,9 +1,10 @@
 [theme]
-# Palette: Controle & Positividade
-# Clean, light, trustworthy — designed for personal finance
-
-primaryColor     = "#4A90D9"          # calm steel blue — main action color
-backgroundColor  = "#F7F9FC"          # near-white with a hint of blue
-secondaryBackgroundColor = "#EEF2F7"  # sidebar & cards — soft blue-grey
-textColor        = "#2C3E50"          # dark navy — strong legibility
+# Palette: Verde suave — finanças pessoais
+primaryColor     = "#2E7D32"
+backgroundColor  = "#F5FAF5"
+secondaryBackgroundColor = "#E8F5E9"
+textColor        = "#1B3A1B"
 font             = "sans serif"
+
+[server]
+headless = true
