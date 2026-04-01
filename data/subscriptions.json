@@ -1,0 +1,82 @@
+[
+  {
+    "id": "b4758f28-09ab-4548-ab0c-6f82cc5222ef",
+    "nome": "Spotify",
+    "valor": 31.0,
+    "dia_desconto": 8,
+    "site": "spotify.com",
+    "email": "",
+    "obs": "",
+    "ativo": true
+  },
+  {
+    "id": "0f576c65-d63d-4aa2-95f0-a2c0cb9d8645",
+    "nome": "IPTV",
+    "valor": 35.0,
+    "dia_desconto": 10,
+    "site": "",
+    "email": "",
+    "obs": "",
+    "ativo": true
+  },
+  {
+    "id": "bd300cf6-6f46-42a9-a669-a102af85472b",
+    "nome": "ChatGPT",
+    "valor": 99.0,
+    "dia_desconto": 5,
+    "site": "chat.openai.com",
+    "email": "",
+    "obs": "Plus",
+    "ativo": true
+  },
+  {
+    "id": "49be2bb9-95f8-415a-8e63-647fffa90105",
+    "nome": "Apple iCloud",
+    "valor": 67.0,
+    "dia_desconto": 15,
+    "site": "apple.com",
+    "email": "",
+    "obs": "Plano família",
+    "ativo": true
+  },
+  {
+    "id": "ddbd4a34-754c-4d30-9b44-9bb08dc82b5e",
+    "nome": "Meli+",
+    "valor": 89.0,
+    "dia_desconto": 12,
+    "site": "mercadolivre.com",
+    "email": "",
+    "obs": "",
+    "ativo": true
+  },
+  {
+    "id": "d60800a8-fc64-4502-b759-0ea7af3c53fc",
+    "nome": "Cartão de Todos",
+    "valor": 33.0,
+    "dia_desconto": 20,
+    "site": "",
+    "email": "",
+    "obs": "",
+    "ativo": true
+  },
+  {
+    "id": "70534382-6a4d-4a41-9625-a06590ca7b67",
+    "nome": "Academia (2)",
+    "valor": 199.0,
+    "dia_desconto": 1,
+    "site": "",
+    "email": "",
+    "obs": "2 planos",
+    "ativo": true
+  },
+  {
+    "id": "d573460b-6ab5-41b7-a963-8b18c908059a",
+    "nome": "Yoga",
+    "valor": 117.0,
+    "dia_desconto": 1,
+    "site": "",
+    "email": "",
+    "obs": "Cartão",
+    "ativo": true
+  }
+]

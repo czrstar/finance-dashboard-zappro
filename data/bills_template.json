@@ -1,0 +1,74 @@
+[
+  {
+    "id": "9d582981-aba5-4c23-a6dd-44425852b97a",
+    "nome": "Aluguel/IPTU",
+    "categoria": "Moradia",
+    "dia_vencimento": 10,
+    "valor": 1200.0,
+    "ativo": true
+  },
+  {
+    "id": "789bb1d7-8d2d-40ac-a269-219f55459e8a",
+    "nome": "Internet + Plano Móvel",
+    "categoria": "Moradia",
+    "dia_vencimento": 15,
+    "valor": 165.0,
+    "ativo": true
+  },
+  {
+    "id": "a1a280d6-c3dd-47b8-82f4-0eeeefc74b7b",
+    "nome": "Conta de Água",
+    "categoria": "Moradia",
+    "dia_vencimento": 20,
+    "valor": 120.0,
+    "ativo": true
+  },
+  {
+    "id": "7d2168cb-cb5b-4268-bf9b-d6cbb79b4162",
+    "nome": "Conta de Luz",
+    "categoria": "Moradia",
+    "dia_vencimento": 20,
+    "valor": 200.0,
+    "ativo": true
+  },
+  {
+    "id": "174819de-c5d1-428d-aabc-b71b088a0bce",
+    "nome": "Pagamento de Veículo",
+    "categoria": "Transporte",
+    "dia_vencimento": 5,
+    "valor": 344.0,
+    "ativo": true
+  },
+  {
+    "id": "e442edfe-69d1-4f8a-9b6d-8b6c88284b61",
+    "nome": "Sofá (parcela)",
+    "categoria": "Moradia",
+    "dia_vencimento": 10,
+    "valor": 467.0,
+    "ativo": true
+  },
+  {
+    "id": "f2fc3da1-f70b-439a-8861-7e8857678c26",
+    "nome": "Faxina",
+    "categoria": "Casa",
+    "dia_vencimento": 25,
+    "valor": 300.0,
+    "ativo": true
+  },
+  {
+    "id": "87a129d9-7b3c-404a-94be-e484d1cb0bf2",
+    "nome": "Impostos Renato",
+    "categoria": "Gastos profissionais",
+    "dia_vencimento": 20,
+    "valor": 500.0,
+    "ativo": true
+  },
+  {
+    "id": "e96ba028-bdc0-44dc-90fe-244d05c31b02",
+    "nome": "MEI Ana",
+    "categoria": "Gastos profissionais",
+    "dia_vencimento": 20,
+    "valor": 81.0,
+    "ativo": true
+  }
+]

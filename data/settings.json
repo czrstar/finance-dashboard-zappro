@@ -1,3 +1,22 @@
 {
-  "current_month": "2026-03"
+  "current_month": "2026-04",
+  "grupos_default": [
+    "Mercado",
+    "Farmácia",
+    "Comida",
+    "Transporte",
+    "Lazer",
+    "Saúde",
+    "Beleza",
+    "Serviço",
+    "Casa",
+    "Outros"
+  ],
+  "contas_default": [
+    "Pix",
+    "Cartão Renato",
+    "Cartão Ana",
+    "Dinheiro",
+    "Outro"
+  ]
 }

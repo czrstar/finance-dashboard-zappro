@@ -1113,6 +1113,234 @@ def extract_installments_from_month(
 
 
 # ---------------------------------------------------------------------------
+# Assinaturas (Subscriptions)
+# ---------------------------------------------------------------------------
+
+SUBSCRIPTIONS_PATH = Path("data/subscriptions.json")
+
+def load_subscriptions() -> list[dict]:
+    """Load subscriptions from JSON file."""
+    p = SUBSCRIPTIONS_PATH
+    if not p.exists() or p.stat().st_size == 0:
+        return []
+    try:
+        with open(p, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return []
+
+def save_subscriptions(subs: list[dict]) -> None:
+    """Save subscriptions to JSON file."""
+    p = SUBSCRIPTIONS_PATH
+    p.parent.mkdir(parents=True, exist_ok=True)
+    with open(p, "w", encoding="utf-8") as f:
+        json.dump(subs, f, ensure_ascii=False, indent=2)
+
+def add_subscription(name: str, valor: float, dia_desconto: int, site: str = "", email: str = "", obs: str = "") -> dict:
+    """Add a new subscription."""
+    subs = load_subscriptions()
+    new_sub = {
+        "id": str(uuid.uuid4()),
+        "nome": name,
+        "valor": valor,
+        "dia_desconto": dia_desconto,
+        "site": site,
+        "email": email,
+        "obs": obs,
+        "ativo": True,
+    }
+    subs.append(new_sub)
+    save_subscriptions(subs)
+    return new_sub
+
+def remove_subscription(sub_id: str) -> None:
+    """Remove a subscription by id."""
+    subs = load_subscriptions()
+    subs = [s for s in subs if s.get("id") != sub_id]
+    save_subscriptions(subs)
+
+def toggle_subscription(sub_id: str) -> None:
+    """Toggle a subscription active/inactive."""
+    subs = load_subscriptions()
+    for s in subs:
+        if s.get("id") == sub_id:
+            s["ativo"] = not s.get("ativo", True)
+    save_subscriptions(subs)
+
+
+# ---------------------------------------------------------------------------
+# Contas a Pagar (Bills)
+# ---------------------------------------------------------------------------
+
+BILLS_TEMPLATE_PATH = Path("data/bills_template.json")
+BILLS_STATUS_DIR = Path("data/bills_status")
+
+def load_bills_template() -> list[dict]:
+    """Load bills template (recurring bills configuration)."""
+    p = BILLS_TEMPLATE_PATH
+    if not p.exists() or p.stat().st_size == 0:
+        return []
+    try:
+        with open(p, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return []
+
+def save_bills_template(bills: list[dict]) -> None:
+    """Save bills template."""
+    p = BILLS_TEMPLATE_PATH
+    p.parent.mkdir(parents=True, exist_ok=True)
+    with open(p, "w", encoding="utf-8") as f:
+        json.dump(bills, f, ensure_ascii=False, indent=2)
+
+def add_bill_template(nome: str, categoria: str, dia_vencimento: int, valor: float) -> dict:
+    """Add a new bill to the template."""
+    bills = load_bills_template()
+    new_bill = {
+        "id": str(uuid.uuid4()),
+        "nome": nome,
+        "categoria": categoria,
+        "dia_vencimento": dia_vencimento,
+        "valor": valor,
+        "ativo": True,
+    }
+    bills.append(new_bill)
+    save_bills_template(bills)
+    return new_bill
+
+def remove_bill_template(bill_id: str) -> None:
+    """Remove a bill from template."""
+    bills = load_bills_template()
+    bills = [b for b in bills if b.get("id") != bill_id]
+    save_bills_template(bills)
+
+def load_bills_status(month: str) -> dict:
+    """Load payment status for a given month. Returns dict {bill_id: bool}."""
+    p = BILLS_STATUS_DIR / f"{month}.json"
+    if not p.exists() or p.stat().st_size == 0:
+        return {}
+    try:
+        with open(p, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+def save_bills_status(month: str, status: dict) -> None:
+    """Save payment status for a given month."""
+    p = BILLS_STATUS_DIR / f"{month}.json"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    with open(p, "w", encoding="utf-8") as f:
+        json.dump(status, f, ensure_ascii=False, indent=2)
+
+def sync_bills_for_month(month: str) -> list[dict]:
+    """Get bills for a month with their payment status. Syncs template to month."""
+    template = load_bills_template()
+    status = load_bills_status(month)
+    result = []
+    for bill in template:
+        if not bill.get("ativo", True):
+            continue
+        bill_id = bill["id"]
+        result.append({
+            **bill,
+            "pago": status.get(bill_id, False),
+        })
+    return result
+
+def toggle_bill_paid(month: str, bill_id: str) -> None:
+    """Toggle a bill's paid status for a given month."""
+    status = load_bills_status(month)
+    status[bill_id] = not status.get(bill_id, False)
+    save_bills_status(month, status)
+
+
+# ---------------------------------------------------------------------------
+# Limites por Categoria (Budget Limits)
+# ---------------------------------------------------------------------------
+
+BUDGET_LIMITS_PATH = Path("data/budget_limits.json")
+
+def load_budget_limits() -> dict:
+    """Load budget limits per category. Returns dict {category: limit_value}."""
+    p = BUDGET_LIMITS_PATH
+    if not p.exists() or p.stat().st_size == 0:
+        return {}
+    try:
+        with open(p, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+def save_budget_limits(limits: dict) -> None:
+    """Save budget limits per category."""
+    p = BUDGET_LIMITS_PATH
+    p.parent.mkdir(parents=True, exist_ok=True)
+    with open(p, "w", encoding="utf-8") as f:
+        json.dump(limits, f, ensure_ascii=False, indent=2)
+
+def set_budget_limit(categoria: str, valor: float) -> None:
+    """Set budget limit for a category."""
+    limits = load_budget_limits()
+    limits[categoria] = valor
+    save_budget_limits(limits)
+
+def remove_budget_limit(categoria: str) -> None:
+    """Remove budget limit for a category."""
+    limits = load_budget_limits()
+    limits.pop(categoria, None)
+    save_budget_limits(limits)
+
+def get_limits_status(month: str, month_dir: Union[str, Path] = MONTH_DIR) -> list[dict]:
+    """
+    Get status of all budget limits for a given month.
+    Returns list of dicts with: categoria, limite, gasto, restante, pct_usado.
+    """
+    limits = load_budget_limits()
+    if not limits:
+        return []
+
+    # Load all expenses for the month
+    df_base = safe_load_month_csv(month, month_dir)
+    df_trans = load_transactions(month)
+    df_inst = get_installments_for_month(month)
+
+    # Aggregate by category
+    gastos: dict[str, float] = {}
+
+    if not df_base.empty and "categoria" in df_base.columns:
+        for cat, grp in df_base.groupby("categoria"):
+            cat_str = str(cat).strip()
+            if cat_str:
+                gastos[cat_str] = gastos.get(cat_str, 0) + float(grp["real"].sum())
+
+    if not df_trans.empty and "categoria" in df_trans.columns:
+        for cat, grp in df_trans.groupby("categoria"):
+            cat_str = str(cat).strip()
+            if cat_str:
+                gastos[cat_str] = gastos.get(cat_str, 0) + float(grp["valor"].sum())
+
+    if not df_inst.empty and "categoria" in df_inst.columns:
+        for cat, grp in df_inst.groupby("categoria"):
+            cat_str = str(cat).strip()
+            if cat_str:
+                gastos[cat_str] = gastos.get(cat_str, 0) + float(grp["valor_parcela"].sum())
+
+    result = []
+    for cat, limite in sorted(limits.items()):
+        gasto = gastos.get(cat, 0.0)
+        restante = limite - gasto
+        pct = (gasto / limite * 100) if limite > 0 else 0
+        result.append({
+            "categoria": cat,
+            "limite": limite,
+            "gasto": round(gasto, 2),
+            "restante": round(restante, 2),
+            "pct_usado": round(pct, 1),
+        })
+    return result
+
+
+# ---------------------------------------------------------------------------
 # Backup
 # ---------------------------------------------------------------------------
 
