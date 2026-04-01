@@ -797,16 +797,34 @@ if page == "📊 Dashboard":
 
     with col_chart2:
         st.markdown("#### 📊 Receitas vs Despesas — Evolução Mensal")
-        # Show current month and up to 5 future months as they accumulate
-        # Start fresh from current_month — no past months
-        chart_rows = [{
+
+        # Historical totals (verified by user)
+        _HISTORICAL_DESPESAS = {
+            "2026-01": 11584.0,
+            "2026-02": 14287.0,
+            "2026-03": 12712.0,
+        }
+
+        # Build chart: last 3 historical months + current month + future months with data
+        chart_rows = []
+
+        # Add historical months
+        for hm in sorted(_HISTORICAL_DESPESAS.keys()):
+            _h_rec = df_receitas[df_receitas["mes"] == hm]["valor"].sum() if not df_receitas.empty else 0.0
+            chart_rows.append({
+                "mes": month_label(hm),
+                "Receitas": _h_rec,
+                "Despesas": _HISTORICAL_DESPESAS[hm],
+            })
+
+        # Add current month (live data)
+        chart_rows.append({
             "mes": month_label(current_month),
             "Receitas": receita_mes,
             "Despesas": total_despesas,
-        }]
-        # Add previous months only if they are >= current_month (i.e. none for now)
-        # As user closes months, future visits will show history from current_month onward
-        _hist_start = current_month  # anchor: only show from this month forward
+        })
+
+        # Add future months if they have data
         _check = _next_month(current_month)
         for _ in range(5):
             _m_csv_path = MONTH_DIR / f"despesas_{_check}.csv"
