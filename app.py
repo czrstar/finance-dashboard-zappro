@@ -695,6 +695,9 @@ st.sidebar.markdown(f"""
 if page == "📊 Dashboard":
     st.markdown(f'<div class="page-title">Dashboard</div>', unsafe_allow_html=True)
 
+    # Sync all sources to budget CSV before loading
+    fu.sync_all_to_budget(current_month, MONTH_DIR)
+
     # Period badge
     try:
         _y = int(current_month[:4])
@@ -1339,17 +1342,17 @@ elif page == "📋 Contas a Pagar":
                     format="%.2f",
                 )
                 if abs(new_val - float(bill["valor_real"])) > 0.01:
-                    fu.update_bill_valor_real(bills_month, bill["id"], new_val)
+                    fu.update_bill_valor_real(bills_month, bill["id"], new_val, MONTH_DIR)
                     st.rerun()
             with c5:
                 pago = bill["pago"]
                 if st.checkbox("Pago?", value=pago, key=f"bill_pago_{bill['id']}"):
                     if not pago:
-                        fu.toggle_bill_paid(bills_month, bill["id"])
+                        fu.toggle_bill_paid(bills_month, bill["id"], MONTH_DIR)
                         st.rerun()
                 else:
                     if pago:
-                        fu.toggle_bill_paid(bills_month, bill["id"])
+                        fu.toggle_bill_paid(bills_month, bill["id"], MONTH_DIR)
                         st.rerun()
             with c6:
                 if st.button("🗑️", key=f"del_bill_{bill['id']}"):
@@ -1688,6 +1691,9 @@ elif page == "💳 Parcelamentos":
 
 elif page == "📊 Orçamento":
     st.markdown('<div class="page-title">Orçamento</div>', unsafe_allow_html=True)
+
+    # Sync all sources before showing budget
+    fu.sync_all_to_budget(current_month, MONTH_DIR)
 
     _oc_cfg = fu.load_settings()
     _oc_cur = _oc_cfg["current_month"]

@@ -1262,21 +1262,170 @@ def sync_bills_for_month(month: str) -> list[dict]:
         })
     return result
 
-def toggle_bill_paid(month: str, bill_id: str) -> None:
-    """Toggle a bill's paid status for a given month."""
+def toggle_bill_paid(month: str, bill_id: str, month_dir: Path = None) -> None:
+    """Toggle a bill's paid status and sync to budget CSV."""
+    if month_dir is None:
+        month_dir = Path("data/monthly")
     status = load_bills_status(month)
     entry = status.get(bill_id, {"pago": False, "valor_real": None})
     entry["pago"] = not entry.get("pago", False)
     status[bill_id] = entry
     save_bills_status(month, status)
+    # Sync to budget CSV
+    _sync_bills_to_budget(month, month_dir)
 
-def update_bill_valor_real(month: str, bill_id: str, valor_real: float) -> None:
-    """Update the actual value for a bill in a specific month."""
+def update_bill_valor_real(month: str, bill_id: str, valor_real: float, month_dir: Path = None) -> None:
+    """Update the actual value for a bill in a specific month and sync to budget."""
+    if month_dir is None:
+        month_dir = Path("data/monthly")
     status = load_bills_status(month)
     entry = status.get(bill_id, {"pago": False, "valor_real": None})
     entry["valor_real"] = valor_real
     status[bill_id] = entry
     save_bills_status(month, status)
+    # Sync to budget CSV
+    _sync_bills_to_budget(month, month_dir)
+
+def _sync_bills_to_budget(month: str, month_dir: Path) -> None:
+    """Sync paid bills to the budget CSV 'real' column.
+    Matches bills to budget rows by normalized description name."""
+    import unicodedata
+
+    csv_path = month_dir / f"despesas_{month}.csv"
+    if not csv_path.exists():
+        return
+
+    df = load_month_csv(csv_path)
+    if df.empty or "descricao" not in df.columns or "real" not in df.columns:
+        return
+
+    bills = sync_bills_for_month(month)
+
+    def _normalize(s: str) -> str:
+        """Normalize string for fuzzy matching: lowercase, no accents, no special chars."""
+        s = str(s).lower().strip()
+        s = unicodedata.normalize("NFD", s)
+        s = "".join(c for c in s if unicodedata.category(c) != "Mn")
+        # Remove common suffixes like (cartão), (parcela), (2)
+        import re
+        s = re.sub(r"\s*\(.*?\)\s*", " ", s).strip()
+        # Remove extra whitespace
+        s = re.sub(r"\s+", " ", s)
+        return s
+
+    # Build lookup: normalized bill name -> (pago, valor_real)
+    bill_lookup = {}
+    for b in bills:
+        norm = _normalize(b["nome"])
+        bill_lookup[norm] = (b["pago"], b["valor_real"])
+        # Also add without "conta de" prefix for matching "Conta de Água" -> "Água"
+        if norm.startswith("conta de "):
+            bill_lookup[norm.replace("conta de ", "")] = (b["pago"], b["valor_real"])
+
+    # Update budget CSV rows
+    changed = False
+    for idx, row in df.iterrows():
+        desc_norm = _normalize(str(row.get("descricao", "")))
+        matched = None
+
+        # Try exact match first
+        if desc_norm in bill_lookup:
+            matched = bill_lookup[desc_norm]
+        else:
+            # Try partial match: bill name contained in budget description or vice versa
+            for bname, bval in bill_lookup.items():
+                if bname in desc_norm or desc_norm in bname:
+                    matched = bval
+                    break
+
+        if matched is not None:
+            pago, valor_real = matched
+            new_real = valor_real if pago else 0.0
+            old_real = float(row.get("real", 0))
+            if abs(new_real - old_real) > 0.01:
+                df.at[idx, "real"] = new_real
+                changed = True
+
+    if changed:
+        # Recalculate diferenca
+        if "diferenca" in df.columns:
+            df["diferenca"] = pd.to_numeric(df["real"], errors="coerce").fillna(0) - pd.to_numeric(df["previsto"], errors="coerce").fillna(0)
+        save_budget_csv(month, df, month_dir)
+
+
+def sync_all_to_budget(month: str, month_dir: Path) -> None:
+    """Master sync: update budget CSV 'real' column from ALL sources.
+    - Contas a Pagar (bills marked as paid)
+    - Transações (individual expenses logged)
+    - The budget CSV rows that DON'T match any bill get their 'real' from transactions
+      grouped by matching description.
+    This is called when loading the Dashboard to ensure everything is up-to-date.
+    """
+    import unicodedata, re
+
+    csv_path = month_dir / f"despesas_{month}.csv"
+    if not csv_path.exists():
+        return
+
+    df = load_month_csv(csv_path)
+    if df.empty or "descricao" not in df.columns or "real" not in df.columns:
+        return
+
+    def _normalize(s: str) -> str:
+        s = str(s).lower().strip()
+        s = unicodedata.normalize("NFD", s)
+        s = "".join(c for c in s if unicodedata.category(c) != "Mn")
+        s = re.sub(r"\s*\(.*?\)\s*", " ", s).strip()
+        s = re.sub(r"\s+", " ", s)
+        return s
+
+    # 1. Build bill lookup (paid bills)
+    bills = sync_bills_for_month(month)
+    bill_lookup = {}
+    for b in bills:
+        norm = _normalize(b["nome"])
+        bill_lookup[norm] = (b["pago"], b["valor_real"])
+        if norm.startswith("conta de "):
+            bill_lookup[norm.replace("conta de ", "")] = (b["pago"], b["valor_real"])
+
+    # 2. Build transaction totals by category
+    trans = load_transactions(month)
+    trans_by_cat = {}
+    if not trans.empty and "categoria" in trans.columns:
+        for cat, grp in trans.groupby("categoria"):
+            cat_norm = _normalize(str(cat))
+            trans_by_cat[cat_norm] = float(grp["valor"].sum())
+
+    # 3. Update budget CSV rows
+    changed = False
+    bill_matched_rows = set()  # Track which rows matched a bill
+
+    for idx, row in df.iterrows():
+        desc_norm = _normalize(str(row.get("descricao", "")))
+
+        # Try to match a bill
+        matched_bill = None
+        if desc_norm in bill_lookup:
+            matched_bill = bill_lookup[desc_norm]
+        else:
+            for bname, bval in bill_lookup.items():
+                if bname in desc_norm or desc_norm in bname:
+                    matched_bill = bval
+                    break
+
+        if matched_bill is not None:
+            pago, valor_real = matched_bill
+            new_real = valor_real if pago else 0.0
+            old_real = float(row.get("real", 0))
+            if abs(new_real - old_real) > 0.01:
+                df.at[idx, "real"] = new_real
+                changed = True
+            bill_matched_rows.add(idx)
+
+    if changed:
+        if "diferenca" in df.columns:
+            df["diferenca"] = pd.to_numeric(df["real"], errors="coerce").fillna(0) - pd.to_numeric(df["previsto"], errors="coerce").fillna(0)
+        save_budget_csv(month, df, month_dir)
 
 
 # ---------------------------------------------------------------------------
