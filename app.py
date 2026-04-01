@@ -796,7 +796,7 @@ if page == "📊 Dashboard":
             st.info("Sem dados de despesas para este mês.")
 
     with col_chart2:
-        st.markdown("#### 📊 Receitas vs Despesas — 6 Meses")
+        st.markdown("#### 📊 Receitas vs Despesas — Últimos Meses")
         last_6 = _get_last_n_months(current_month, 6)
 
         chart_rows = []
@@ -809,10 +809,19 @@ if page == "📊 Dashboard":
             _m_inst_total = _m_inst["valor_parcela"].sum() if not _m_inst.empty else 0.0
             _m_desp = _m_base_total + _m_trans_total + _m_inst_total
             _m_rec = df_receitas[df_receitas["mes"] == m]["valor"].sum() if not df_receitas.empty else 0.0
+            # Only include months that have any data
+            if _m_desp > 0 or _m_rec > 0:
+                chart_rows.append({
+                    "mes": month_label(m),
+                    "Receitas": _m_rec,
+                    "Despesas": _m_desp,
+                })
+        # If no historical data, show just current month
+        if not chart_rows:
             chart_rows.append({
-                "mes": month_label(m),
-                "Receitas": _m_rec,
-                "Despesas": _m_desp,
+                "mes": month_label(current_month),
+                "Receitas": receita_mes,
+                "Despesas": total_despesas,
             })
 
         chart_df = pd.DataFrame(chart_rows)
@@ -879,24 +888,23 @@ if page == "📊 Dashboard":
         recent_items = recent_items[:8]
 
         if recent_items:
-            tx_html = ""
             for item in recent_items:
                 val = item["valor"]
                 val_class = "tx-valor-pos" if val > 0 else "tx-valor-neg"
                 val_str = f"+{fmt(abs(val))}" if val > 0 else f"−{fmt(abs(val))}"
-                tx_html += f"""
-                <div class="tx-item">
-                    <div class="tx-left">
-                        <div class="tx-icon">{item['icon']}</div>
-                        <div>
-                            <div class="tx-desc">{item['desc']}</div>
-                            <div class="tx-meta">{item['meta']}</div>
-                        </div>
-                    </div>
-                    <div class="{val_class}">{val_str}</div>
-                </div>
-                """
-            st.markdown(f'<div class="section-card">{tx_html}</div>', unsafe_allow_html=True)
+                st.markdown(
+                    f'<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #f5f5f5;">'
+                    f'<div style="display:flex;align-items:center;gap:12px;">'
+                    f'<div style="width:36px;height:36px;border-radius:8px;background:#f5f5f5;display:flex;align-items:center;justify-content:center;font-size:0.9rem;">{item["icon"]}</div>'
+                    f'<div>'
+                    f'<div style="font-weight:500;font-size:0.85rem;color:#333;">{item["desc"]}</div>'
+                    f'<div style="font-size:0.7rem;color:#999;">{item["meta"]}</div>'
+                    f'</div>'
+                    f'</div>'
+                    f'<div class="{val_class}">{val_str}</div>'
+                    f'</div>',
+                    unsafe_allow_html=True,
+                )
         else:
             st.info("Nenhuma transação recente.")
 
@@ -904,7 +912,6 @@ if page == "📊 Dashboard":
         st.markdown("#### 🎯 Limites — Situação")
 
         if limits_status:
-            limits_html = ""
             for ls in limits_status:
                 pct = ls["pct_usado"]
                 if pct < 70:
@@ -916,37 +923,33 @@ if page == "📊 Dashboard":
                 else:
                     bar_color = "#E53935"
                     pct_class = "pct-danger"
-
                 bar_width = min(pct, 100)
 
-                limits_html += f"""
-                <div class="limit-item">
-                    <div class="limit-header">
-                        <span class="limit-cat">{_cat_icon(ls['categoria'])} {ls['categoria']}</span>
-                        <span class="limit-pct {pct_class}">{pct:.0f}% usado</span>
-                    </div>
-                    <div class="limit-bar-bg">
-                        <div class="limit-bar-fill" style="width:{bar_width}%; background:{bar_color};"></div>
-                    </div>
-                    <div class="limit-values">Gasto: {fmt(ls['gasto'])} / Limite: {fmt(ls['limite'])} — Restante: {fmt(ls['restante'])}</div>
-                </div>
-                """
+                st.markdown(
+                    f'<div class="section-card">'
+                    f'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">'
+                    f'<span style="font-weight:600;font-size:0.85rem;color:#333;">{_cat_icon(ls["categoria"])} {ls["categoria"]}</span>'
+                    f'<span class="limit-pct {pct_class}">{pct:.0f}% usado</span>'
+                    f'</div>'
+                    f'<div style="width:100%;height:8px;background:#f0f0f0;border-radius:4px;overflow:hidden;">'
+                    f'<div style="height:100%;width:{bar_width}%;background:{bar_color};border-radius:4px;"></div>'
+                    f'</div>'
+                    f'<div style="font-size:0.75rem;color:#888;margin-top:6px;">Gasto: {fmt(ls["gasto"])} / Limite: {fmt(ls["limite"])} — Restante: {fmt(ls["restante"])}</div>'
+                    f'</div>',
+                    unsafe_allow_html=True,
+                )
 
             # Summary
             ok_count = sum(1 for ls in limits_status if ls["pct_usado"] < 70)
             warn_count = sum(1 for ls in limits_status if 70 <= ls["pct_usado"] < 90)
             danger_count = sum(1 for ls in limits_status if ls["pct_usado"] >= 90)
 
-            summary_html = '<div style="margin-top:12px;">'
             if ok_count:
-                summary_html += f'<div style="background:#E8F5E9;padding:8px 14px;border-radius:8px;margin-bottom:6px;font-size:0.8rem;color:#2E7D32;">🟢 {ok_count} categoria(s) dentro do limite</div>'
+                st.markdown(f'<div style="background:#E8F5E9;padding:8px 14px;border-radius:8px;margin-bottom:6px;font-size:0.8rem;color:#2E7D32;">🟢 {ok_count} categoria(s) dentro do limite</div>', unsafe_allow_html=True)
             if warn_count:
-                summary_html += f'<div style="background:#FFF8E1;padding:8px 14px;border-radius:8px;margin-bottom:6px;font-size:0.8rem;color:#F57F17;">🟡 {warn_count} categoria(s) perto do limite</div>'
+                st.markdown(f'<div style="background:#FFF8E1;padding:8px 14px;border-radius:8px;margin-bottom:6px;font-size:0.8rem;color:#F57F17;">🟡 {warn_count} categoria(s) perto do limite</div>', unsafe_allow_html=True)
             if danger_count:
-                summary_html += f'<div style="background:#FFEBEE;padding:8px 14px;border-radius:8px;margin-bottom:6px;font-size:0.8rem;color:#C62828;">🔴 {danger_count} categoria(s) acima de 90%</div>'
-            summary_html += '</div>'
-
-            st.markdown(f'<div class="section-card">{limits_html}{summary_html}</div>', unsafe_allow_html=True)
+                st.markdown(f'<div style="background:#FFEBEE;padding:8px 14px;border-radius:8px;margin-bottom:6px;font-size:0.8rem;color:#C62828;">🔴 {danger_count} categoria(s) acima de 90%</div>', unsafe_allow_html=True)
         else:
             st.info("Nenhum limite configurado. Vá em 🎯 Limites & Categorias para definir.")
 
@@ -1193,22 +1196,23 @@ elif page == "🎯 Limites & Categorias":
                     pct_class = "pct-danger"
                 bar_width = min(pct, 100)
 
-                st.markdown(f"""
-                <div class="section-card">
-                    <div class="limit-header">
-                        <span class="limit-cat">{_cat_icon(ls['categoria'])} {ls['categoria']}</span>
-                        <span class="limit-pct {pct_class}">{pct:.0f}% usado</span>
-                    </div>
-                    <div style="font-size:0.75rem;color:#888;margin-bottom:6px;">Limite: {fmt(ls['limite'])}</div>
-                    <div class="limit-bar-bg">
-                        <div class="limit-bar-fill" style="width:{bar_width}%; background:{bar_color};"></div>
-                    </div>
-                    <div style="display:flex;justify-content:space-between;margin-top:6px;">
-                        <span style="font-size:0.75rem;font-weight:600;color:#333;">Gasto: {fmt(ls['gasto'])}</span>
-                        <span style="font-size:0.75rem;color:#888;">Restante: {fmt(ls['restante'])}</span>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
+                st.markdown(
+                    f'<div class="section-card">'
+                    f'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">'
+                    f'<span style="font-weight:600;font-size:0.85rem;color:#333;">{_cat_icon(ls["categoria"])} {ls["categoria"]}</span>'
+                    f'<span class="limit-pct {pct_class}">{pct:.0f}% usado</span>'
+                    f'</div>'
+                    f'<div style="font-size:0.75rem;color:#888;margin-bottom:6px;">Limite: {fmt(ls["limite"])}</div>'
+                    f'<div style="width:100%;height:8px;background:#f0f0f0;border-radius:4px;overflow:hidden;">'
+                    f'<div style="height:100%;width:{bar_width}%;background:{bar_color};border-radius:4px;"></div>'
+                    f'</div>'
+                    f'<div style="display:flex;justify-content:space-between;margin-top:6px;">'
+                    f'<span style="font-size:0.75rem;font-weight:600;color:#333;">Gasto: {fmt(ls["gasto"])}</span>'
+                    f'<span style="font-size:0.75rem;color:#888;">Restante: {fmt(ls["restante"])}</span>'
+                    f'</div>'
+                    f'</div>',
+                    unsafe_allow_html=True,
+                )
 
             # Remove limit buttons
             st.divider()
@@ -1380,32 +1384,42 @@ elif page == "🔄 Assinaturas":
 
     if active_subs:
         for sub in active_subs:
-            sub_html = f"""
-            <div class="sub-card">
-                <div class="sub-left">
-                    <div class="sub-icon">{_sub_icon(sub.get('nome', ''))}</div>
-                    <div>
-                        <div class="sub-name">{sub.get('nome', '—')}</div>
-                        <div class="sub-detail">
-                            {'🔗 ' + sub['site'] + ' · ' if sub.get('site') else ''}
-                            {sub.get('email', '')}
-                            {' · ' + sub.get('obs', '') if sub.get('obs') else ''}
-                        </div>
-                    </div>
-                </div>
-                <div style="text-align:right;">
-                    <div class="sub-valor">{fmt(sub.get('valor', 0))}/mês</div>
-                    <div class="sub-dia">Desconta dia {sub.get('dia_desconto', '—')}</div>
-                </div>
-            </div>
-            """
-            col_sub, col_btn = st.columns([6, 1])
-            with col_sub:
-                st.markdown(sub_html, unsafe_allow_html=True)
-            with col_btn:
-                if st.button("🗑️", key=f"del_sub_{sub['id']}"):
-                    fu.remove_subscription(sub["id"])
-                    st.rerun()
+            icon = _sub_icon(sub.get('nome', ''))
+            nome = sub.get('nome', '—')
+            site = sub.get('site', '')
+            email = sub.get('email', '')
+            obs = sub.get('obs', '')
+            valor = fmt(sub.get('valor', 0))
+            dia = sub.get('dia_desconto', '—')
+
+            detail_parts = []
+            if site:
+                detail_parts.append(f"🔗 {site}")
+            if email:
+                detail_parts.append(email)
+            if obs:
+                detail_parts.append(obs)
+            detail_text = " · ".join(detail_parts)
+
+            st.markdown(
+                f'<div class="sub-card">'
+                f'<div class="sub-left">'
+                f'<div class="sub-icon">{icon}</div>'
+                f'<div>'
+                f'<div class="sub-name">{nome}</div>'
+                f'<div class="sub-detail">{detail_text}</div>'
+                f'</div>'
+                f'</div>'
+                f'<div style="text-align:right;">'
+                f'<div class="sub-valor">{valor}/mês</div>'
+                f'<div class="sub-dia">Desconta dia {dia}</div>'
+                f'</div>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+            if st.button(f"🗑️ Remover {nome}", key=f"del_sub_{sub['id']}"):
+                fu.remove_subscription(sub["id"])
+                st.rerun()
     else:
         st.info("Nenhuma assinatura cadastrada.")
 
