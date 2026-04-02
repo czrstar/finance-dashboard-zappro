@@ -661,6 +661,27 @@ with st.sidebar.expander("⚙️ Configurações"):
         except Exception as _bk_err:
             st.error(f"Erro no backup: {_bk_err}")
 
+    st.divider()
+    st.caption("☁️ Cloud Storage")
+    _diag = cloud_storage.diagnose()
+    _cloud_ok = _diag.get("has_token") and _diag.get("branch_exists")
+    st.markdown(f"**Status:** {'✅ Conectado' if _cloud_ok else '❌ Desconectado'}")
+    if not _diag.get("has_token"):
+        st.warning("Token GitHub não configurado em Secrets")
+    elif not _diag.get("branch_exists"):
+        st.warning(f"Branch '{_diag.get('branch')}' não existe no repo {_diag.get('repo')}")
+    else:
+        st.caption(f"Repo: {_diag.get('repo_full_name', _diag.get('repo'))}")
+    if st.button("🔄 Forçar sync da nuvem", key="cfg_cloud_sync", use_container_width=True):
+        ok = cloud_storage.sync_from_cloud(force=True)
+        if ok:
+            st.success("Sync da nuvem concluído!")
+            st.rerun()
+        else:
+            st.error("Falha no sync. Verifique token/repo nas Secrets.")
+    with st.expander("🔍 Diagnóstico detalhado"):
+        st.json(_diag)
+
 # Sidebar — Saldo do período
 _sb_receitas = fu.load_receitas(RECEITAS_PATH)
 _sb_rec_mes = _sb_receitas[_sb_receitas["mes"] == current_month]["valor"].sum() if not _sb_receitas.empty else 0.0
@@ -1568,6 +1589,18 @@ elif page == "🔄 Assinaturas":
 elif page == "💳 Parcelamentos":
     st.markdown('<div class="page-title">Parcelamentos</div>', unsafe_allow_html=True)
     st.markdown(f'<div class="page-subtitle">{month_label_full(current_month)}</div>', unsafe_allow_html=True)
+
+    # Total de parcelamentos do mês
+    _inst_mes = fu.get_installments_for_month(current_month)
+    _inst_total_mes = _inst_mes["valor_parcela"].sum() if not _inst_mes.empty else 0.0
+    _inst_count = len(_inst_mes)
+    st.markdown(f"""
+    <div style="background: linear-gradient(135deg, #1a1a2e, #16213e); border-radius: 12px;
+                padding: 16px 24px; margin-bottom: 20px; border: 1px solid rgba(255,255,255,0.08);">
+        <div style="color: rgba(255,255,255,0.6); font-size: 0.85rem;">Total de Parcelamentos ({_inst_count} contratos)</div>
+        <div style="color: #EF9A9A; font-size: 1.5rem; font-weight: 700;">{fmt(_inst_total_mes)}</div>
+    </div>
+    """, unsafe_allow_html=True)
 
     # Flash
     _flash_inst = st.session_state.pop("_inst_flash", None)

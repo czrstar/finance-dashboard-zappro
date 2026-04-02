@@ -67,7 +67,7 @@ def _get_config() -> tuple[str, str]:
     if not token:
         token = os.environ.get("GITHUB_TOKEN", "")
     if not repo:
-        repo = os.environ.get("GITHUB_REPO", "czrstar/finance-dashboard-zappro")
+        repo = os.environ.get("GITHUB_REPO", "czrstar/finance-dashboard")
     return str(token).strip(), str(repo).strip()
 
 
@@ -88,6 +88,66 @@ def is_enabled() -> bool:
     return bool(token and repo and _requests)
 
 
+def _ensure_branch_exists(token: str, repo: str) -> bool:
+    """Garante que a branch data-store existe. Cria a partir de main se não existir."""
+    url = f"https://api.github.com/repos/{repo}/git/ref/heads/{_BRANCH}"
+    resp = _requests.get(url, headers=_headers(token), timeout=10)
+    if resp.status_code == 200:
+        return True
+    # Branch não existe — criar a partir de main
+    main_url = f"https://api.github.com/repos/{repo}/git/ref/heads/main"
+    main_resp = _requests.get(main_url, headers=_headers(token), timeout=10)
+    if main_resp.status_code != 200:
+        print(f"[cloud_storage] main branch not found: {main_resp.status_code}")
+        return False
+    sha = main_resp.json().get("object", {}).get("sha", "")
+    if not sha:
+        return False
+    create_resp = _requests.post(
+        f"https://api.github.com/repos/{repo}/git/refs",
+        headers=_headers(token),
+        json={"ref": f"refs/heads/{_BRANCH}", "sha": sha},
+        timeout=10,
+    )
+    ok = create_resp.status_code in (200, 201)
+    print(f"[cloud_storage] create branch {_BRANCH}: {create_resp.status_code} ok={ok}")
+    return ok
+
+
+def diagnose() -> dict:
+    """Retorna informações de diagnóstico sobre o cloud storage."""
+    token, repo = _get_config()
+    info = {
+        "has_token": bool(token),
+        "token_prefix": token[:8] + "..." if token else "",
+        "repo": repo,
+        "requests_available": bool(_requests),
+        "sync_done": _SYNC_FLAG.exists(),
+        "branch": _BRANCH,
+    }
+    if token and repo and _requests:
+        # Testar acesso à API
+        try:
+            resp = _requests.get(
+                f"https://api.github.com/repos/{repo}",
+                headers=_headers(token),
+                timeout=10,
+            )
+            info["api_status"] = resp.status_code
+            if resp.status_code == 200:
+                info["repo_full_name"] = resp.json().get("full_name", "")
+            # Verificar branch
+            br = _requests.get(
+                f"https://api.github.com/repos/{repo}/git/ref/heads/{_BRANCH}",
+                headers=_headers(token),
+                timeout=10,
+            )
+            info["branch_exists"] = br.status_code == 200
+        except Exception as e:
+            info["api_error"] = str(e)
+    return info
+
+
 # ---------------------------------------------------------------------------
 # Sync (download da branch data-store → filesystem local)
 # ---------------------------------------------------------------------------
@@ -105,6 +165,9 @@ def sync_from_cloud(force: bool = False) -> bool:
         return False
 
     try:
+        # Garantir que a branch data-store existe
+        _ensure_branch_exists(token, repo)
+
         # Listar toda a árvore da branch data-store
         tree_url = (
             f"https://api.github.com/repos/{repo}"

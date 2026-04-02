@@ -84,7 +84,15 @@
     "nome": "Corte de Cabelo Renato",
     "categoria": "Cuidados pessoais",
     "dia_vencimento": 15,
-    "valor": 50.0,
+    "valor": 109.0,
+    "ativo": true
+  },
+  {
+    "id": "c1a3f005-5555-4eee-ffff-000000000005",
+    "nome": "IPVA",
+    "categoria": "Transporte",
+    "dia_vencimento": 10,
+    "valor": 354.69,
     "ativo": true
   },
   {
