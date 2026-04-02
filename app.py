@@ -1272,6 +1272,7 @@ elif page == "🎯 Limites & Categorias":
 
 elif page == "📋 Contas a Pagar":
     st.markdown('<div class="page-title">Controle de Contas a Pagar</div>', unsafe_allow_html=True)
+    st.caption("v7 — sync direto")
 
     # Month navigation
     if "bills_month" not in st.session_state:
