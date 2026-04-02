@@ -1291,6 +1291,14 @@ elif page == "📋 Contas a Pagar":
             st.session_state["bills_month"] = _next_month(bills_month)
             st.rerun()
 
+    # Show sync debug if available
+    if "_sync_debug" in st.session_state:
+        _sd = st.session_state.pop("_sync_debug")
+        if _sd.get("ok"):
+            st.success(f"✅ {_sd['msg']}")
+        else:
+            st.error(f"❌ {_sd['msg']}")
+
     # Add bill template
     st.divider()
     with st.expander("➕ Adicionar Conta ao Template"):
@@ -1353,10 +1361,102 @@ elif page == "📋 Contas a Pagar":
                 if st.checkbox("Pago?", value=pago, key=f"bill_pago_{bill['id']}"):
                     if not pago:
                         fu.toggle_bill_paid(bills_month, bill["id"], MONTH_DIR)
+                        # --- INLINE budget sync with visible debug ---
+                        try:
+                            _bill_info = bill
+                            _bill_valor = float(_bill_info.get("valor_real", _bill_info.get("valor", 0)))
+                            _bill_cat = str(_bill_info.get("categoria", "")).lower().strip()
+                            _csv_path = MONTH_DIR / f"despesas_{bills_month}.csv"
+                            if _csv_path.exists():
+                                import unicodedata as _ud2
+                                _bdf = fu.load_month_csv(_csv_path)
+                                _bill_name_n = _ud2.normalize("NFD", _bill_info["nome"].lower().strip())
+                                _bill_name_n = "".join(c for c in _bill_name_n if _ud2.category(c) != "Mn")
+                                _target = None
+                                # Try name match first
+                                for _bi, _br in _bdf.iterrows():
+                                    _desc_n = _ud2.normalize("NFD", str(_br.get("descricao","")).lower().strip())
+                                    _desc_n = "".join(c for c in _desc_n if _ud2.category(c) != "Mn")
+                                    if _bill_name_n == _desc_n or _bill_name_n in _desc_n or _desc_n in _bill_name_n:
+                                        _target = _bi
+                                        break
+                                # Category fallback
+                                if _target is None and _bill_cat:
+                                    _owned = set()
+                                    _tmpl = fu.load_bills_template()
+                                    for _tb in _tmpl:
+                                        _tn = _ud2.normalize("NFD", _tb["nome"].lower().strip())
+                                        _tn = "".join(c for c in _tn if _ud2.category(c) != "Mn")
+                                        for _bi2, _br2 in _bdf.iterrows():
+                                            _dn2 = _ud2.normalize("NFD", str(_br2.get("descricao","")).lower().strip())
+                                            _dn2 = "".join(c for c in _dn2 if _ud2.category(c) != "Mn")
+                                            if _tn == _dn2 or _tn in _dn2 or _dn2 in _tn:
+                                                _owned.add(_bi2)
+                                                break
+                                    for _bi3, _br3 in _bdf.iterrows():
+                                        if _bi3 in _owned:
+                                            continue
+                                        _rc = str(_br3.get("categoria","")).lower().strip()
+                                        if _rc == _bill_cat:
+                                            _target = _bi3
+                                            break
+                                if _target is not None:
+                                    _bdf.at[_target, "real"] = _bill_valor
+                                    if "diferenca" in _bdf.columns:
+                                        _bdf["diferenca"] = pd.to_numeric(_bdf["real"], errors="coerce").fillna(0) - pd.to_numeric(_bdf["previsto"], errors="coerce").fillna(0)
+                                    fu.save_budget_csv(bills_month, _bdf, MONTH_DIR)
+                                    st.session_state["_sync_debug"] = {"ok": True, "msg": f"{_bill_info['nome']} ({_bill_valor}) → orçamento linha '{_bdf.at[_target, 'descricao']}' (idx={_target})"}
+                                else:
+                                    st.session_state["_sync_debug"] = {"ok": False, "msg": f"Não encontrou linha para '{_bill_info['nome']}' (cat={_bill_cat}). Owned rows={_owned if '_owned' in dir() else 'N/A'}. Budget cats: {[str(r.get('categoria','')) for _,r in _bdf.iterrows() if str(r.get('categoria','')).lower().strip() == _bill_cat]}"}
+                        except Exception as _e:
+                            st.session_state["_sync_debug"] = {"ok": False, "msg": f"Erro: {type(_e).__name__}: {_e}"}
                         st.rerun()
                 else:
                     if pago:
                         fu.toggle_bill_paid(bills_month, bill["id"], MONTH_DIR)
+                        # Clear value from budget when unpaid
+                        try:
+                            _bill_info = bill
+                            _bill_cat = str(_bill_info.get("categoria", "")).lower().strip()
+                            _csv_path = MONTH_DIR / f"despesas_{bills_month}.csv"
+                            if _csv_path.exists():
+                                import unicodedata as _ud2
+                                _bdf = fu.load_month_csv(_csv_path)
+                                _bill_name_n = _ud2.normalize("NFD", _bill_info["nome"].lower().strip())
+                                _bill_name_n = "".join(c for c in _bill_name_n if _ud2.category(c) != "Mn")
+                                _target = None
+                                for _bi, _br in _bdf.iterrows():
+                                    _desc_n = _ud2.normalize("NFD", str(_br.get("descricao","")).lower().strip())
+                                    _desc_n = "".join(c for c in _desc_n if _ud2.category(c) != "Mn")
+                                    if _bill_name_n == _desc_n or _bill_name_n in _desc_n or _desc_n in _bill_name_n:
+                                        _target = _bi
+                                        break
+                                if _target is None and _bill_cat:
+                                    _owned = set()
+                                    _tmpl = fu.load_bills_template()
+                                    for _tb in _tmpl:
+                                        _tn = _ud2.normalize("NFD", _tb["nome"].lower().strip())
+                                        _tn = "".join(c for c in _tn if _ud2.category(c) != "Mn")
+                                        for _bi2, _br2 in _bdf.iterrows():
+                                            _dn2 = _ud2.normalize("NFD", str(_br2.get("descricao","")).lower().strip())
+                                            _dn2 = "".join(c for c in _dn2 if _ud2.category(c) != "Mn")
+                                            if _tn == _dn2 or _tn in _dn2 or _dn2 in _tn:
+                                                _owned.add(_bi2)
+                                                break
+                                    for _bi3, _br3 in _bdf.iterrows():
+                                        if _bi3 in _owned:
+                                            continue
+                                        _rc = str(_br3.get("categoria","")).lower().strip()
+                                        if _rc == _bill_cat:
+                                            _target = _bi3
+                                            break
+                                if _target is not None:
+                                    _bdf.at[_target, "real"] = 0.0
+                                    if "diferenca" in _bdf.columns:
+                                        _bdf["diferenca"] = pd.to_numeric(_bdf["real"], errors="coerce").fillna(0) - pd.to_numeric(_bdf["previsto"], errors="coerce").fillna(0)
+                                    fu.save_budget_csv(bills_month, _bdf, MONTH_DIR)
+                        except Exception:
+                            pass
                         st.rerun()
             with c6:
                 if st.button("🗑️", key=f"del_bill_{bill['id']}"):
