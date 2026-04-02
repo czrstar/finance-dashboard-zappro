@@ -17,6 +17,22 @@ from typing import Optional, Union
 import pandas as pd
 
 # ---------------------------------------------------------------------------
+# Cloud persistence (GitHub Gist)
+# ---------------------------------------------------------------------------
+
+try:
+    import cloud_storage as _cloud
+except ImportError:
+    _cloud = None
+
+
+def _persist(filepath):
+    """Envia arquivo para armazenamento em nuvem (se configurado)."""
+    if _cloud and _cloud.is_enabled():
+        _cloud.persist(filepath)
+
+
+# ---------------------------------------------------------------------------
 # Constantes
 # ---------------------------------------------------------------------------
 
@@ -661,6 +677,7 @@ def save_receita(mes: str, fonte: str, valor: float, obs: str = "",
     else:
         df = new_row
     df.to_csv(p, index=False)
+    _persist(p)
 
 
 # ---------------------------------------------------------------------------
@@ -768,6 +785,7 @@ def save_settings(settings_dict: dict) -> None:
     p.parent.mkdir(parents=True, exist_ok=True)
     with open(p, "w", encoding="utf-8") as f:
         json.dump(settings_dict, f, ensure_ascii=False, indent=2)
+    _persist(p)
 
 
 # ---------------------------------------------------------------------------
@@ -820,6 +838,7 @@ def append_transaction(month: str, row_dict: dict) -> None:
     else:
         df = new_row
     df.to_csv(p, index=False, encoding="utf-8")
+    _persist(p)
 
 
 def update_transaction(month: str, transaction_id: str, row_dict: dict) -> None:
@@ -839,6 +858,7 @@ def update_transaction(month: str, transaction_id: str, row_dict: dict) -> None:
         for col in TRANSACTIONS_COLS:
             df.at[idx_list[0], col] = str(row_dict.get(col, ""))
         df[TRANSACTIONS_COLS].to_csv(p, index=False, encoding="utf-8")
+        _persist(p)
     except Exception:
         pass
 
@@ -852,6 +872,7 @@ def delete_transaction(month: str, transaction_id: str) -> None:
         df = pd.read_csv(p, encoding="utf-8", dtype=str)
         df = df[df["id"].astype(str) != str(transaction_id)]
         df.to_csv(p, index=False, encoding="utf-8")
+        _persist(p)
     except Exception:
         pass
 
@@ -898,6 +919,7 @@ def save_installments(df: pd.DataFrame) -> None:
         if col not in df.columns:
             df[col] = ""
     df[INSTALLMENTS_COLS].to_csv(p, index=False, encoding="utf-8")
+    _persist(p)
 
 
 def get_installments_for_month(month: str) -> pd.DataFrame:
@@ -1135,6 +1157,7 @@ def save_subscriptions(subs: list[dict]) -> None:
     p.parent.mkdir(parents=True, exist_ok=True)
     with open(p, "w", encoding="utf-8") as f:
         json.dump(subs, f, ensure_ascii=False, indent=2)
+    _persist(p)
 
 def add_subscription(name: str, valor: float, dia_desconto: int, site: str = "", email: str = "", obs: str = "") -> dict:
     """Add a new subscription."""
@@ -1192,6 +1215,7 @@ def save_bills_template(bills: list[dict]) -> None:
     p.parent.mkdir(parents=True, exist_ok=True)
     with open(p, "w", encoding="utf-8") as f:
         json.dump(bills, f, ensure_ascii=False, indent=2)
+    _persist(p)
 
 def add_bill_template(nome: str, categoria: str, dia_vencimento: int, valor: float) -> dict:
     """Add a new bill to the template."""
@@ -1243,6 +1267,7 @@ def save_bills_status(month: str, status: dict) -> None:
     p.parent.mkdir(parents=True, exist_ok=True)
     with open(p, "w", encoding="utf-8") as f:
         json.dump(status, f, ensure_ascii=False, indent=2)
+    _persist(p)
 
 def sync_bills_for_month(month: str) -> list[dict]:
     """Get bills for a month with their payment status and actual values."""
@@ -1451,6 +1476,7 @@ def save_budget_limits(limits: dict) -> None:
     p.parent.mkdir(parents=True, exist_ok=True)
     with open(p, "w", encoding="utf-8") as f:
         json.dump(limits, f, ensure_ascii=False, indent=2)
+    _persist(p)
 
 def set_budget_limit(categoria: str, valor: float) -> None:
     """Set budget limit for a category."""
@@ -1592,6 +1618,7 @@ def save_budget_csv(month: str, df: pd.DataFrame,
     out[["descricao", "categoria", "previsto", "real", "diferenca"]].to_csv(
         p, index=False, encoding="utf-8"
     )
+    _persist(p)
 
 
 # ---------------------------------------------------------------------------
@@ -1682,6 +1709,7 @@ def save_month_snapshot(month: str, snapshot: dict) -> Path:
     p.parent.mkdir(parents=True, exist_ok=True)
     with open(p, "w", encoding="utf-8") as f:
         json.dump(snapshot, f, ensure_ascii=False, indent=2)
+    _persist(p)
     return p
 
 

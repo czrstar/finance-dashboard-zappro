@@ -15,6 +15,10 @@ import plotly.graph_objects as go
 import streamlit as st
 
 import finance_utils as fu
+import cloud_storage
+
+# Sincronizar dados da nuvem (GitHub Gist) no início de cada deployment
+cloud_storage.sync_from_cloud()
 
 # ---------------------------------------------------------------------------
 # Configuração da página
