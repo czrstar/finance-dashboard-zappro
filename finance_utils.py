@@ -1313,8 +1313,9 @@ def update_bill_valor_real(month: str, bill_id: str, valor_real: float, month_di
 
 def _sync_bills_to_budget(month: str, month_dir: Path) -> None:
     """Sync paid bills to the budget CSV 'real' column.
-    Matches bills to budget rows by normalized description name."""
-    import unicodedata
+    Matches bills to budget rows by normalized description name,
+    with category fallback for manually added bills."""
+    import unicodedata, re
 
     csv_path = month_dir / f"despesas_{month}.csv"
     if not csv_path.exists():
@@ -1327,52 +1328,71 @@ def _sync_bills_to_budget(month: str, month_dir: Path) -> None:
     bills = sync_bills_for_month(month)
 
     def _normalize(s: str) -> str:
-        """Normalize string for fuzzy matching: lowercase, no accents, no special chars."""
         s = str(s).lower().strip()
         s = unicodedata.normalize("NFD", s)
         s = "".join(c for c in s if unicodedata.category(c) != "Mn")
-        # Remove common suffixes like (cartão), (parcela), (2)
-        import re
         s = re.sub(r"\s*\(.*?\)\s*", " ", s).strip()
-        # Remove extra whitespace
         s = re.sub(r"\s+", " ", s)
         return s
 
-    # Build lookup: normalized bill name -> (pago, valor_real)
-    bill_lookup = {}
-    for b in bills:
-        norm = _normalize(b["nome"])
-        bill_lookup[norm] = (b["pago"], b["valor_real"])
-        # Also add without "conta de" prefix for matching "Conta de Água" -> "Água"
-        if norm.startswith("conta de "):
-            bill_lookup[norm.replace("conta de ", "")] = (b["pago"], b["valor_real"])
-
-    # Update budget CSV rows
+    # --- Pass 1: match by name ---
+    bill_matched = set()       # bill indices already matched
+    row_matched = set()        # budget row indices already matched
     changed = False
-    for idx, row in df.iterrows():
-        desc_norm = _normalize(str(row.get("descricao", "")))
-        matched = None
 
-        # Try exact match first
-        if desc_norm in bill_lookup:
-            matched = bill_lookup[desc_norm]
-        else:
-            # Try partial match: bill name contained in budget description or vice versa
-            for bname, bval in bill_lookup.items():
-                if bname in desc_norm or desc_norm in bname:
-                    matched = bval
-                    break
+    for bi, b in enumerate(bills):
+        if not b["pago"]:
+            continue
+        bnorm = _normalize(b["nome"])
+        bnorm_no_conta = bnorm.replace("conta de ", "") if bnorm.startswith("conta de ") else None
 
-        if matched is not None:
-            pago, valor_real = matched
-            new_real = valor_real if pago else 0.0
-            old_real = float(row.get("real", 0))
-            if abs(new_real - old_real) > 0.01:
-                df.at[idx, "real"] = new_real
-                changed = True
+        for idx, row in df.iterrows():
+            desc_norm = _normalize(str(row.get("descricao", "")))
+            hit = (
+                bnorm == desc_norm
+                or bnorm in desc_norm
+                or desc_norm in bnorm
+                or (bnorm_no_conta and (bnorm_no_conta == desc_norm
+                    or bnorm_no_conta in desc_norm
+                    or desc_norm in bnorm_no_conta))
+            )
+            if hit:
+                valor = b["valor_real"] if b["valor_real"] is not None else b.get("valor", 0)
+                old_real = float(row.get("real", 0))
+                if abs(valor - old_real) > 0.01:
+                    df.at[idx, "real"] = valor
+                    changed = True
+                bill_matched.add(bi)
+                row_matched.add(idx)
+                break
+
+    # --- Pass 2: category fallback for unmatched paid bills ---
+    unmatched_bills_by_cat: dict[str, float] = {}
+    for bi, b in enumerate(bills):
+        if bi in bill_matched or not b["pago"]:
+            continue
+        cat_norm = _normalize(b.get("categoria", ""))
+        if not cat_norm:
+            continue
+        valor = b["valor_real"] if b["valor_real"] is not None else b.get("valor", 0)
+        unmatched_bills_by_cat[cat_norm] = unmatched_bills_by_cat.get(cat_norm, 0.0) + valor
+
+    for cat_norm, total_valor in unmatched_bills_by_cat.items():
+        # Find unmatched budget rows with matching category
+        for idx, row in df.iterrows():
+            if idx in row_matched:
+                continue
+            row_cat_norm = _normalize(str(row.get("categoria", "")))
+            if row_cat_norm == cat_norm:
+                old_real = float(row.get("real", 0))
+                new_real = old_real + total_valor
+                if abs(new_real - old_real) > 0.01:
+                    df.at[idx, "real"] = new_real
+                    changed = True
+                row_matched.add(idx)
+                break  # assigned to first unmatched row of that category
 
     if changed:
-        # Recalculate diferenca
         if "diferenca" in df.columns:
             df["diferenca"] = pd.to_numeric(df["real"], errors="coerce").fillna(0) - pd.to_numeric(df["previsto"], errors="coerce").fillna(0)
         save_budget_csv(month, df, month_dir)
@@ -1380,10 +1400,8 @@ def _sync_bills_to_budget(month: str, month_dir: Path) -> None:
 
 def sync_all_to_budget(month: str, month_dir: Path) -> None:
     """Master sync: update budget CSV 'real' column from ALL sources.
-    - Contas a Pagar (bills marked as paid)
+    - Contas a Pagar (bills marked as paid) — matched by name, then by category
     - Transações (individual expenses logged)
-    - The budget CSV rows that DON'T match any bill get their 'real' from transactions
-      grouped by matching description.
     This is called when loading the Dashboard to ensure everything is up-to-date.
     """
     import unicodedata, re
@@ -1404,48 +1422,71 @@ def sync_all_to_budget(month: str, month_dir: Path) -> None:
         s = re.sub(r"\s+", " ", s)
         return s
 
-    # 1. Build bill lookup (paid bills)
+    # 1. Bills — match by name, then category fallback
     bills = sync_bills_for_month(month)
-    bill_lookup = {}
-    for b in bills:
-        norm = _normalize(b["nome"])
-        bill_lookup[norm] = (b["pago"], b["valor_real"])
-        if norm.startswith("conta de "):
-            bill_lookup[norm.replace("conta de ", "")] = (b["pago"], b["valor_real"])
+    changed = False
+    bill_matched = set()       # bill indices matched by name
+    row_matched = set()        # budget row indices matched by name
 
-    # 2. Build transaction totals by category
+    # Pass 1: match by name
+    for bi, b in enumerate(bills):
+        if not b["pago"]:
+            continue
+        bnorm = _normalize(b["nome"])
+        bnorm_no_conta = bnorm.replace("conta de ", "") if bnorm.startswith("conta de ") else None
+
+        for idx, row in df.iterrows():
+            desc_norm = _normalize(str(row.get("descricao", "")))
+            hit = (
+                bnorm == desc_norm
+                or bnorm in desc_norm
+                or desc_norm in bnorm
+                or (bnorm_no_conta and (bnorm_no_conta == desc_norm
+                    or bnorm_no_conta in desc_norm
+                    or desc_norm in bnorm_no_conta))
+            )
+            if hit:
+                valor = b["valor_real"] if b["valor_real"] is not None else b.get("valor", 0)
+                old_real = float(row.get("real", 0))
+                if abs(valor - old_real) > 0.01:
+                    df.at[idx, "real"] = valor
+                    changed = True
+                bill_matched.add(bi)
+                row_matched.add(idx)
+                break
+
+    # Pass 2: category fallback for unmatched paid bills
+    unmatched_bills_by_cat: dict[str, float] = {}
+    for bi, b in enumerate(bills):
+        if bi in bill_matched or not b["pago"]:
+            continue
+        cat_norm = _normalize(b.get("categoria", ""))
+        if not cat_norm:
+            continue
+        valor = b["valor_real"] if b["valor_real"] is not None else b.get("valor", 0)
+        unmatched_bills_by_cat[cat_norm] = unmatched_bills_by_cat.get(cat_norm, 0.0) + valor
+
+    for cat_norm, total_valor in unmatched_bills_by_cat.items():
+        for idx, row in df.iterrows():
+            if idx in row_matched:
+                continue
+            row_cat_norm = _normalize(str(row.get("categoria", "")))
+            if row_cat_norm == cat_norm:
+                old_real = float(row.get("real", 0))
+                new_real = old_real + total_valor
+                if abs(new_real - old_real) > 0.01:
+                    df.at[idx, "real"] = new_real
+                    changed = True
+                row_matched.add(idx)
+                break
+
+    # 2. Build transaction totals by category (for rows not matched to any bill)
     trans = load_transactions(month)
     trans_by_cat = {}
     if not trans.empty and "categoria" in trans.columns:
         for cat, grp in trans.groupby("categoria"):
             cat_norm = _normalize(str(cat))
             trans_by_cat[cat_norm] = float(grp["valor"].sum())
-
-    # 3. Update budget CSV rows
-    changed = False
-    bill_matched_rows = set()  # Track which rows matched a bill
-
-    for idx, row in df.iterrows():
-        desc_norm = _normalize(str(row.get("descricao", "")))
-
-        # Try to match a bill
-        matched_bill = None
-        if desc_norm in bill_lookup:
-            matched_bill = bill_lookup[desc_norm]
-        else:
-            for bname, bval in bill_lookup.items():
-                if bname in desc_norm or desc_norm in bname:
-                    matched_bill = bval
-                    break
-
-        if matched_bill is not None:
-            pago, valor_real = matched_bill
-            new_real = valor_real if pago else 0.0
-            old_real = float(row.get("real", 0))
-            if abs(new_real - old_real) > 0.01:
-                df.at[idx, "real"] = new_real
-                changed = True
-            bill_matched_rows.add(idx)
 
     if changed:
         if "diferenca" in df.columns:
