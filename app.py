@@ -1697,7 +1697,25 @@ elif page == "📊 Orçamento":
     st.markdown('<div class="page-title">Orçamento</div>', unsafe_allow_html=True)
 
     # Sync all sources before showing budget
-    fu.sync_all_to_budget(current_month, MONTH_DIR)
+    try:
+        fu.sync_all_to_budget(current_month, MONTH_DIR)
+    except Exception as _sync_err:
+        st.error(f"Erro no sync: {_sync_err}")
+
+    # DEBUG: show sync state (temporary)
+    with st.expander("🔧 Debug sync (temporário)", expanded=False):
+        _dbg_bills = fu.sync_bills_for_month(current_month)
+        _dbg_paid = [b for b in _dbg_bills if b["pago"]]
+        st.write(f"Bills total: {len(_dbg_bills)}, Pagas: {len(_dbg_paid)}")
+        for b in _dbg_paid:
+            st.write(f"  ✓ {b['nome']} | cat={b['categoria']} | valor={b.get('valor_real', b.get('valor', 0))}")
+        _dbg_status = fu.load_bills_status(current_month)
+        st.write(f"Status file entries: {len(_dbg_status)}")
+        _dbg_csv = fu.load_budget_csv(current_month, MONTH_DIR)
+        if not _dbg_csv.empty:
+            _dbg_trans = _dbg_csv[_dbg_csv["categoria"].str.lower().str.contains("transporte", na=False)]
+            st.write("Transporte rows in budget:")
+            st.dataframe(_dbg_trans)
 
     _oc_cfg = fu.load_settings()
     _oc_cur = _oc_cfg["current_month"]

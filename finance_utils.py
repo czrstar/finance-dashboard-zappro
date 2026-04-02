@@ -1327,13 +1327,16 @@ def _sync_bills_to_budget(month: str, month_dir: Path) -> None:
 
     csv_path = month_dir / f"despesas_{month}.csv"
     if not csv_path.exists():
+        print(f"[sync_bills] CSV not found: {csv_path}")
         return
 
     df = load_month_csv(csv_path)
     if df.empty or "descricao" not in df.columns or "real" not in df.columns:
+        print(f"[sync_bills] DF empty or missing columns")
         return
 
     bills = sync_bills_for_month(month)
+    print(f"[sync_bills] {len(bills)} bills, paid: {sum(1 for b in bills if b['pago'])}")
 
     def _normalize(s: str) -> str:
         s = str(s).lower().strip()
