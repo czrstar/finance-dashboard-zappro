@@ -699,8 +699,7 @@ st.sidebar.markdown(f"""
 if page == "📊 Dashboard":
     st.markdown(f'<div class="page-title">Dashboard</div>', unsafe_allow_html=True)
 
-    # Sync all sources to budget CSV before loading
-    fu.sync_all_to_budget(current_month, MONTH_DIR)
+    # Bill-to-budget sync now happens directly when toggling "Pago?" in Contas a Pagar
 
     # Period badge
     try:
@@ -1797,8 +1796,7 @@ elif page == "💳 Parcelamentos":
 elif page == "📊 Orçamento":
     st.markdown('<div class="page-title">Orçamento</div>', unsafe_allow_html=True)
 
-    # Sync all sources before showing budget
-    fu.sync_all_to_budget(current_month, MONTH_DIR)
+    # Bill-to-budget sync now happens directly when toggling "Pago?" in Contas a Pagar
 
     _oc_cfg = fu.load_settings()
     _oc_cur = _oc_cfg["current_month"]
