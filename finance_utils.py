@@ -1489,10 +1489,9 @@ def _sync_bills_to_budget(month: str, month_dir: Path) -> None:
                 continue
             row_cat_norm = _normalize(str(row.get("categoria", "")))
             if row_cat_norm == cat_norm:
-                old_real = float(row.get("real", 0))
-                new_real = old_real + total_valor
-                if abs(new_real - old_real) > 0.01:
-                    df.at[idx, "real"] = new_real
+                # REPLACE — never add to existing value
+                if abs(total_valor - float(row.get("real", 0))) > 0.01:
+                    df.at[idx, "real"] = total_valor
                     changed = True
                 reserved_rows.add(idx)
                 break
@@ -1594,10 +1593,9 @@ def sync_all_to_budget(month: str, month_dir: Path) -> None:
                 continue
             row_cat_norm = _normalize(str(row.get("categoria", "")))
             if row_cat_norm == cat_norm:
-                old_real = float(row.get("real", 0))
-                new_real = old_real + total_valor
-                if abs(new_real - old_real) > 0.01:
-                    df.at[idx, "real"] = new_real
+                # REPLACE — never add to existing value
+                if abs(total_valor - float(row.get("real", 0))) > 0.01:
+                    df.at[idx, "real"] = total_valor
                     changed = True
                 reserved_rows.add(idx)
                 break

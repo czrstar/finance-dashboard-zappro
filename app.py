@@ -17,12 +17,16 @@ import streamlit as st
 import finance_utils as fu
 import cloud_storage
 
-# Sincronizar dados da nuvem (GitHub Gist) no início de cada deployment
-cloud_storage.sync_from_cloud()
+# Cloud sync desabilitado temporariamente — persist() ainda não funciona
+# corretamente, então sync_from_cloud sobrescreve dados bons com dados antigos.
+# Reabilitar quando persist() estiver 100% funcional.
+# cloud_storage.sync_from_cloud()
 
 # ---------------------------------------------------------------------------
 # Configuração da página
 # ---------------------------------------------------------------------------
+
+_APP_VERSION = "v8"
 
 st.set_page_config(
     page_title="Finanças Pessoais",
@@ -572,7 +576,7 @@ st.sidebar.markdown("""
 <div style="text-align:center; padding: 10px 0 6px 0;">
     <div style="font-size: 2rem;">💰</div>
     <div style="font-size: 1.2rem; font-weight: 700; color: white;">Finanças Pessoais</div>
-    <div style="font-size: 0.72rem; color: rgba(255,255,255,0.6);">Seu organizador financeiro</div>
+    <div style="font-size: 0.72rem; color: rgba(255,255,255,0.6);">Seu organizador financeiro ({_APP_VERSION})</div>
 </div>
 """, unsafe_allow_html=True)
 
