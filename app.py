@@ -1742,6 +1742,12 @@ elif page == "📊 Orçamento":
     else:
         _oc_edit_df = pd.DataFrame(columns=["descricao", "categoria", "previsto", "real"])
 
+    # Use a content-based key so the editor refreshes when data changes
+    # (st.data_editor caches state by key — a static key shows stale values)
+    _oc_hash = hashlib.md5(
+        _oc_edit_df.to_csv(index=False).encode()
+    ).hexdigest()[:8]
+
     edited_oc = st.data_editor(
         _oc_edit_df,
         column_config={
@@ -1750,7 +1756,7 @@ elif page == "📊 Orçamento":
             "previsto": st.column_config.NumberColumn("Previsto (R$)", min_value=0.0, format="%.2f"),
             "real": st.column_config.NumberColumn("Real (R$)", min_value=0.0, format="%.2f"),
         },
-        num_rows="dynamic", use_container_width=True, hide_index=True, key=f"budget_editor_{mes_oc}",
+        num_rows="dynamic", use_container_width=True, hide_index=True, key=f"budget_editor_{mes_oc}_{_oc_hash}",
     )
 
     # Totals

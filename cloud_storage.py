@@ -53,8 +53,15 @@ def _get_config() -> tuple[str, str]:
     token, repo = "", ""
     try:
         import streamlit as st
-        token = st.secrets.get("GITHUB_TOKEN", "")
-        repo = st.secrets.get("GITHUB_REPO", "")
+        # Bracket access is more reliable across Streamlit versions
+        try:
+            token = st.secrets["GITHUB_TOKEN"]
+        except (KeyError, AttributeError):
+            pass
+        try:
+            repo = st.secrets["GITHUB_REPO"]
+        except (KeyError, AttributeError):
+            pass
     except Exception:
         pass
     if not token:
@@ -258,7 +265,7 @@ def _upload_file(token: str, repo: str, path: str, content: str) -> bool:
                     _sha_cache[path] = new_sha
                 return True
 
-    print(f"[cloud_storage] upload falhou ({path}): {resp.status_code}")
+    print(f"[cloud_storage] upload falhou ({path}): {resp.status_code} — {resp.text[:200]}")
     return False
 
 
@@ -269,17 +276,30 @@ def persist(filepath) -> bool:
     """
     token, repo = _get_config()
     if not token or not repo or not _requests:
+        print(f"[cloud_storage] persist SKIP — token={bool(token)} repo={bool(repo)} requests={bool(_requests)}")
         return False
 
     try:
         p = Path(filepath)
         if not p.exists():
+            print(f"[cloud_storage] persist SKIP — file not found: {p} (cwd={Path.cwd()})")
             return False
 
         with open(p, "r", encoding="utf-8") as f:
             content = f.read()
 
-        return _upload_file(token, repo, str(filepath), content)
+        # Normalize path: always use relative 'data/...' for the API
+        path_str = str(filepath)
+        # Strip any absolute prefix to ensure we get 'data/...'
+        if "/" in path_str:
+            idx = path_str.find("data/")
+            if idx >= 0:
+                path_str = path_str[idx:]
+
+        print(f"[cloud_storage] persist uploading: {path_str} ({len(content)} bytes)")
+        result = _upload_file(token, repo, path_str, content)
+        print(f"[cloud_storage] persist result: {result} for {path_str}")
+        return result
 
     except Exception as e:
         print(f"[cloud_storage] persist erro ({filepath}): {e}")

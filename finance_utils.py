@@ -1313,8 +1313,16 @@ def update_bill_valor_real(month: str, bill_id: str, valor_real: float, month_di
 
 def _sync_bills_to_budget(month: str, month_dir: Path) -> None:
     """Sync paid bills to the budget CSV 'real' column.
-    Matches bills to budget rows by normalized description name,
-    with category fallback for manually added bills."""
+
+    Three-pass matching:
+      Pass 0 — Reserve budget rows for ALL bills (paid or not) by name.
+               This prevents category-fallback from stealing a row that
+               belongs to a specific template bill.
+      Pass 1 — Set 'real' value for paid bills whose rows were reserved.
+      Pass 2 — Category fallback: unmatched paid bills are summed by
+               category and placed in the first UNreserved budget row
+               of that category.
+    """
     import unicodedata, re
 
     csv_path = month_dir / f"despesas_{month}.csv"
@@ -1335,38 +1343,50 @@ def _sync_bills_to_budget(month: str, month_dir: Path) -> None:
         s = re.sub(r"\s+", " ", s)
         return s
 
-    # --- Pass 1: match by name ---
-    bill_matched = set()       # bill indices already matched
-    row_matched = set()        # budget row indices already matched
+    def _name_match(bnorm: str, desc_norm: str) -> bool:
+        """Check if bill name matches budget description."""
+        bnorm_no_conta = bnorm.replace("conta de ", "") if bnorm.startswith("conta de ") else None
+        return (
+            bnorm == desc_norm
+            or bnorm in desc_norm
+            or desc_norm in bnorm
+            or (bnorm_no_conta is not None and (
+                bnorm_no_conta == desc_norm
+                or bnorm_no_conta in desc_norm
+                or desc_norm in bnorm_no_conta))
+        )
+
+    # --- Pass 0: Reserve budget rows for ALL bills by name (paid or not) ---
+    bill_to_row: dict[int, int] = {}    # bill index → budget row index
+    reserved_rows: set[int] = set()      # budget row indices reserved by name match
     changed = False
 
     for bi, b in enumerate(bills):
-        if not b["pago"]:
-            continue
         bnorm = _normalize(b["nome"])
-        bnorm_no_conta = bnorm.replace("conta de ", "") if bnorm.startswith("conta de ") else None
-
         for idx, row in df.iterrows():
+            if idx in reserved_rows:
+                continue
             desc_norm = _normalize(str(row.get("descricao", "")))
-            hit = (
-                bnorm == desc_norm
-                or bnorm in desc_norm
-                or desc_norm in bnorm
-                or (bnorm_no_conta and (bnorm_no_conta == desc_norm
-                    or bnorm_no_conta in desc_norm
-                    or desc_norm in bnorm_no_conta))
-            )
-            if hit:
-                valor = b["valor_real"] if b["valor_real"] is not None else b.get("valor", 0)
-                old_real = float(row.get("real", 0))
-                if abs(valor - old_real) > 0.01:
-                    df.at[idx, "real"] = valor
-                    changed = True
-                bill_matched.add(bi)
-                row_matched.add(idx)
+            if _name_match(bnorm, desc_norm):
+                bill_to_row[bi] = idx
+                reserved_rows.add(idx)
                 break
 
-    # --- Pass 2: category fallback for unmatched paid bills ---
+    # --- Pass 1: Set 'real' for paid bills that have a reserved row ---
+    bill_matched = set()
+    for bi, b in enumerate(bills):
+        if not b["pago"]:
+            continue
+        if bi in bill_to_row:
+            idx = bill_to_row[bi]
+            valor = b["valor_real"] if b["valor_real"] is not None else b.get("valor", 0)
+            old_real = float(df.at[idx, "real"]) if pd.notna(df.at[idx, "real"]) else 0.0
+            if abs(valor - old_real) > 0.01:
+                df.at[idx, "real"] = valor
+                changed = True
+            bill_matched.add(bi)
+
+    # --- Pass 2: Category fallback for unmatched paid bills ---
     unmatched_bills_by_cat: dict[str, float] = {}
     for bi, b in enumerate(bills):
         if bi in bill_matched or not b["pago"]:
@@ -1378,9 +1398,9 @@ def _sync_bills_to_budget(month: str, month_dir: Path) -> None:
         unmatched_bills_by_cat[cat_norm] = unmatched_bills_by_cat.get(cat_norm, 0.0) + valor
 
     for cat_norm, total_valor in unmatched_bills_by_cat.items():
-        # Find unmatched budget rows with matching category
+        # Find the first UNreserved budget row with matching category
         for idx, row in df.iterrows():
-            if idx in row_matched:
+            if idx in reserved_rows:
                 continue
             row_cat_norm = _normalize(str(row.get("categoria", "")))
             if row_cat_norm == cat_norm:
@@ -1389,8 +1409,8 @@ def _sync_bills_to_budget(month: str, month_dir: Path) -> None:
                 if abs(new_real - old_real) > 0.01:
                     df.at[idx, "real"] = new_real
                     changed = True
-                row_matched.add(idx)
-                break  # assigned to first unmatched row of that category
+                reserved_rows.add(idx)
+                break
 
     if changed:
         if "diferenca" in df.columns:
@@ -1403,6 +1423,11 @@ def sync_all_to_budget(month: str, month_dir: Path) -> None:
     - Contas a Pagar (bills marked as paid) — matched by name, then by category
     - Transações (individual expenses logged)
     This is called when loading the Dashboard to ensure everything is up-to-date.
+
+    Uses the same three-pass logic as _sync_bills_to_budget:
+      Pass 0 — Reserve rows by name (all bills, paid or not)
+      Pass 1 — Set real for paid bills with reserved rows
+      Pass 2 — Category fallback for unmatched paid bills (unreserved rows only)
     """
     import unicodedata, re
 
@@ -1422,40 +1447,52 @@ def sync_all_to_budget(month: str, month_dir: Path) -> None:
         s = re.sub(r"\s+", " ", s)
         return s
 
-    # 1. Bills — match by name, then category fallback
+    def _name_match(bnorm: str, desc_norm: str) -> bool:
+        bnorm_no_conta = bnorm.replace("conta de ", "") if bnorm.startswith("conta de ") else None
+        return (
+            bnorm == desc_norm
+            or bnorm in desc_norm
+            or desc_norm in bnorm
+            or (bnorm_no_conta is not None and (
+                bnorm_no_conta == desc_norm
+                or bnorm_no_conta in desc_norm
+                or desc_norm in bnorm_no_conta))
+        )
+
+    # 1. Bills — three-pass matching
     bills = sync_bills_for_month(month)
     changed = False
-    bill_matched = set()       # bill indices matched by name
-    row_matched = set()        # budget row indices matched by name
 
-    # Pass 1: match by name
+    # Pass 0: Reserve rows for ALL bills by name
+    bill_to_row: dict[int, int] = {}
+    reserved_rows: set[int] = set()
+
+    for bi, b in enumerate(bills):
+        bnorm = _normalize(b["nome"])
+        for idx, row in df.iterrows():
+            if idx in reserved_rows:
+                continue
+            desc_norm = _normalize(str(row.get("descricao", "")))
+            if _name_match(bnorm, desc_norm):
+                bill_to_row[bi] = idx
+                reserved_rows.add(idx)
+                break
+
+    # Pass 1: Set real for paid bills with reserved rows
+    bill_matched = set()
     for bi, b in enumerate(bills):
         if not b["pago"]:
             continue
-        bnorm = _normalize(b["nome"])
-        bnorm_no_conta = bnorm.replace("conta de ", "") if bnorm.startswith("conta de ") else None
+        if bi in bill_to_row:
+            idx = bill_to_row[bi]
+            valor = b["valor_real"] if b["valor_real"] is not None else b.get("valor", 0)
+            old_real = float(df.at[idx, "real"]) if pd.notna(df.at[idx, "real"]) else 0.0
+            if abs(valor - old_real) > 0.01:
+                df.at[idx, "real"] = valor
+                changed = True
+            bill_matched.add(bi)
 
-        for idx, row in df.iterrows():
-            desc_norm = _normalize(str(row.get("descricao", "")))
-            hit = (
-                bnorm == desc_norm
-                or bnorm in desc_norm
-                or desc_norm in bnorm
-                or (bnorm_no_conta and (bnorm_no_conta == desc_norm
-                    or bnorm_no_conta in desc_norm
-                    or desc_norm in bnorm_no_conta))
-            )
-            if hit:
-                valor = b["valor_real"] if b["valor_real"] is not None else b.get("valor", 0)
-                old_real = float(row.get("real", 0))
-                if abs(valor - old_real) > 0.01:
-                    df.at[idx, "real"] = valor
-                    changed = True
-                bill_matched.add(bi)
-                row_matched.add(idx)
-                break
-
-    # Pass 2: category fallback for unmatched paid bills
+    # Pass 2: Category fallback for unmatched paid bills (unreserved rows only)
     unmatched_bills_by_cat: dict[str, float] = {}
     for bi, b in enumerate(bills):
         if bi in bill_matched or not b["pago"]:
@@ -1468,7 +1505,7 @@ def sync_all_to_budget(month: str, month_dir: Path) -> None:
 
     for cat_norm, total_valor in unmatched_bills_by_cat.items():
         for idx, row in df.iterrows():
-            if idx in row_matched:
+            if idx in reserved_rows:
                 continue
             row_cat_norm = _normalize(str(row.get("categoria", "")))
             if row_cat_norm == cat_norm:
@@ -1477,7 +1514,7 @@ def sync_all_to_budget(month: str, month_dir: Path) -> None:
                 if abs(new_real - old_real) > 0.01:
                     df.at[idx, "real"] = new_real
                     changed = True
-                row_matched.add(idx)
+                reserved_rows.add(idx)
                 break
 
     # 2. Build transaction totals by category (for rows not matched to any bill)
