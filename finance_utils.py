@@ -1296,8 +1296,90 @@ def toggle_bill_paid(month: str, bill_id: str, month_dir: Path = None) -> None:
     entry["pago"] = not entry.get("pago", False)
     status[bill_id] = entry
     save_bills_status(month, status)
-    # Sync to budget CSV
-    _sync_bills_to_budget(month, month_dir)
+    # Direct sync: write this specific bill to budget CSV
+    _direct_bill_to_budget(month, bill_id, entry, month_dir)
+
+def _direct_bill_to_budget(month: str, bill_id: str, entry: dict, month_dir: Path) -> None:
+    """Directly write a single bill's value to the matching budget row.
+    Called immediately after toggling payment status.
+    """
+    import unicodedata as _ud, re as _re
+
+    # Find the bill info from template
+    template = load_bills_template()
+    bill = None
+    for b in template:
+        if b.get("id") == bill_id:
+            bill = b
+            break
+    if bill is None:
+        return
+
+    csv_path = month_dir / f"despesas_{month}.csv"
+    if not csv_path.exists():
+        return
+
+    df = load_month_csv(csv_path)
+    if df.empty or "descricao" not in df.columns or "real" not in df.columns:
+        return
+
+    is_paid = entry.get("pago", False)
+    valor_real = entry.get("valor_real")
+    valor = valor_real if valor_real is not None else bill.get("valor", 0)
+
+    def _norm(s: str) -> str:
+        s = str(s).lower().strip()
+        s = _ud.normalize("NFD", s)
+        s = "".join(c for c in s if _ud.category(c) != "Mn")
+        s = _re.sub(r"\s*\(.*?\)\s*", " ", s).strip()
+        s = _re.sub(r"\s+", " ", s)
+        return s
+
+    bill_norm = _norm(bill["nome"])
+    bill_cat = _norm(bill.get("categoria", ""))
+
+    # Strategy 1: find budget row by name match
+    target_idx = None
+    for idx, row in df.iterrows():
+        desc = _norm(str(row.get("descricao", "")))
+        if (bill_norm == desc or bill_norm in desc or desc in bill_norm):
+            target_idx = idx
+            break
+
+    # Strategy 2: category fallback — find a budget row with same category
+    # that does NOT name-match any template bill
+    if target_idx is None and bill_cat:
+        # Build set of budget rows that are "owned" by name-matched bills
+        owned_rows = set()
+        for tb in template:
+            tb_norm = _norm(tb["nome"])
+            for idx, row in df.iterrows():
+                desc = _norm(str(row.get("descricao", "")))
+                if (tb_norm == desc or tb_norm in desc or desc in tb_norm):
+                    owned_rows.add(idx)
+                    break
+
+        for idx, row in df.iterrows():
+            if idx in owned_rows:
+                continue
+            row_cat = _norm(str(row.get("categoria", "")))
+            if row_cat == bill_cat:
+                target_idx = idx
+                break
+
+    if target_idx is None:
+        return
+
+    # Write the value
+    if is_paid:
+        df.at[target_idx, "real"] = float(valor)
+    else:
+        df.at[target_idx, "real"] = 0.0
+
+    if "diferenca" in df.columns:
+        df["diferenca"] = pd.to_numeric(df["real"], errors="coerce").fillna(0) - \
+                          pd.to_numeric(df["previsto"], errors="coerce").fillna(0)
+    save_budget_csv(month, df, month_dir)
 
 def update_bill_valor_real(month: str, bill_id: str, valor_real: float, month_dir: Path = None) -> None:
     """Update the actual value for a bill in a specific month and sync to budget."""
@@ -1308,8 +1390,8 @@ def update_bill_valor_real(month: str, bill_id: str, valor_real: float, month_di
     entry["valor_real"] = valor_real
     status[bill_id] = entry
     save_bills_status(month, status)
-    # Sync to budget CSV
-    _sync_bills_to_budget(month, month_dir)
+    # Direct sync to budget CSV
+    _direct_bill_to_budget(month, bill_id, entry, month_dir)
 
 def _sync_bills_to_budget(month: str, month_dir: Path) -> None:
     """Sync paid bills to the budget CSV 'real' column.
