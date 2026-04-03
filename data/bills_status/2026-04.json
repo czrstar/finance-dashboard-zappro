@@ -1,1 +1,26 @@
-{}
+{
+  "174819de-c5d1-428d-aabc-b71b088a0bce": {
+    "pago": true,
+    "valor_real": 344.0
+  },
+  "9d582981-aba5-4c23-a6dd-44425852b97a": {
+    "pago": false,
+    "valor_real": 1200.0
+  },
+  "e442edfe-69d1-4f8a-9b6d-8b6c88284b61": {
+    "pago": true,
+    "valor_real": 467.0
+  },
+  "789bb1d7-8d2d-40ac-a269-219f55459e8a": {
+    "pago": true,
+    "valor_real": 165.0
+  },
+  "c1a3f002-2222-4bbb-cccc-000000000002": {
+    "pago": true,
+    "valor_real": 109.0
+  },
+  "c1a3f005-5555-4eee-ffff-000000000005": {
+    "pago": true,
+    "valor_real": 354.69
+  }
+}
