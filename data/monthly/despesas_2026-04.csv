@@ -1,8 +1,8 @@
 descricao,categoria,previsto,real,diferenca
 Aluguel/IPTU,Moradia,1200.0,0.0,-1200.0
-Internet + plano movel (2),Moradia,165.0,0.0,-165.0
-Pagamento de veiculo,Transporte,344.0,0.0,-344.0
-Corte de cabelo Renato,Cuidados pessoais,109.0,0.0,-109.0
+Internet + plano movel (2),Moradia,165.0,165.0,0.0
+Pagamento de veiculo,Transporte,344.0,344.0,0.0
+Corte de cabelo Renato,Cuidados pessoais,109.0,109.0,0.0
 Unhas Ana,Cuidados pessoais,77.0,0.0,-77.0
 Academia (2) (cartão),Cuidados pessoais,199.0,0.0,-199.0
 Yoga (cartão),Cuidados pessoais,117.0,0.0,-117.0
@@ -15,7 +15,7 @@ ChatGPT,Gastos profissionais,99.0,0.0,-99.0
 MEI Ana,Gastos profissionais,81.0,0.0,-81.0
 Impostos Renato,Gastos profissionais,500.0,0.0,-500.0
 Faxinha,Extra,300.0,0.0,-300.0
-Sofa,Moradia,467.0,0.0,-467.0
+Sofa,Moradia,467.0,467.0,0.0
 Agua,Moradia,120.0,0.0,-120.0
 Energia,Moradia,200.0,0.0,-200.0
 Mercado,Alimentação,1700.0,0.0,-1700.0
@@ -27,5 +27,5 @@ Entretenimento,Entretenimento,400.0,0.0,-400.0
 Farmacia,Cuidados pessoais,150.0,0.0,-150.0
 Comida fora,Extra,150.0,0.0,-150.0
 Gastos inesperados,Extra,800.0,0.0,-800.0
-Carro,Transporte,400.0,0.0,-400.0
+Carro,Transporte,400.0,354.69,-45.31
 Apartamento,Poupanças,2500.0,0.0,-2500.0
