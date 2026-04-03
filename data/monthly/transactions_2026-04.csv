@@ -1,3 +1,4 @@
 id,data,descricao,nota,categoria,grupo,valor,conta_cartao,recorrente
 bee753e0-ddc8-409b-9027-b8cc1f6cc0a5,2026-04-03,Alcool,4.69,Transporte,Transporte,100.0,Cartão Renato,False
 21011617-3d4f-448a-93e5-0535d56fe8bd,2026-04-03,Farmacia,,Cuidados pessoais,Farmácia,33.18,Cartão Renato,False
+c4ef9ede-e0a5-4373-9d9a-c2250c3622fe,2026-04-03,Sassa,,Alimentação,Comida,38.0,Cartão Renato,False
