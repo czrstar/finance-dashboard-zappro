@@ -47,6 +47,7 @@ _PERSIST_DIRS = [
 # Cache de SHAs para updates (Contents API precisa do SHA atual)
 _sha_cache: dict[str, str] = {}
 _branch_checked: bool = False
+_PERSIST_MARKER = "data/.persist_active"
 
 
 def _get_config() -> tuple[str, str]:
@@ -166,17 +167,34 @@ def sync_from_cloud(force: bool = False) -> bool:
     """
     Baixa todos os arquivos de dados da branch data-store para o filesystem.
     Roda apenas uma vez por deployment (usa flag em /tmp).
+
+    IMPORTANTE: só baixa se persist() já salvou dados antes (marker existe).
+    Isso evita sobrescrever dados bons do git com dados velhos do data-store.
     """
     if not force and _SYNC_FLAG.exists():
         return True
 
     token, repo = _get_config()
     if not token or not repo or not _requests:
+        _SYNC_FLAG.touch()  # Marca como done para não travar o app
         return False
 
     try:
         # Garantir que a branch data-store existe
         _ensure_branch_exists(token, repo)
+
+        # Verificar se persist() já foi ativado (marker file)
+        marker_url = f"{_api(token, repo)}/{_PERSIST_MARKER}?ref={_BRANCH}"
+        marker_resp = _requests.get(marker_url, headers=_headers(token), timeout=10)
+        if marker_resp.status_code != 200:
+            # persist() nunca rodou — data-store tem dados velhos do git.
+            # Usar dados commitados (já no filesystem via deploy).
+            print("[cloud_storage] sync SKIP — persist marker not found, using committed data")
+            _SYNC_FLAG.touch()
+            return True
+
+        # Marker existe → persist() salvou dados frescos. Baixar tudo.
+        print("[cloud_storage] sync — persist marker found, downloading cloud data")
 
         # Listar toda a árvore da branch data-store
         tree_url = (
@@ -186,6 +204,7 @@ def sync_from_cloud(force: bool = False) -> bool:
         resp = _requests.get(tree_url, headers=_headers(token), timeout=20)
         if resp.status_code != 200:
             print(f"[cloud_storage] tree falhou: {resp.status_code}")
+            _SYNC_FLAG.touch()
             return False
 
         tree = resp.json().get("tree", [])
@@ -342,6 +361,33 @@ def _upload_file(token: str, repo: str, path: str, content: str) -> bool:
     return False
 
 
+_marker_created: bool = False
+
+
+def _ensure_persist_marker(token: str, repo: str) -> None:
+    """Cria um marker file no data-store indicando que persist() está ativo."""
+    global _marker_created
+    if _marker_created:
+        return
+    try:
+        url = f"{_api(token, repo)}/{_PERSIST_MARKER}"
+        check = _requests.get(f"{url}?ref={_BRANCH}", headers=_headers(token), timeout=10)
+        if check.status_code == 200:
+            _marker_created = True
+            return
+        # Criar o marker
+        payload = {
+            "message": "auto: activate persist marker",
+            "content": base64.b64encode(b"persist_active").decode("ascii"),
+            "branch": _BRANCH,
+        }
+        resp = _requests.put(url, headers=_headers(token), json=payload, timeout=10)
+        _marker_created = resp.status_code in (200, 201)
+        print(f"[cloud_storage] persist marker created: {_marker_created}")
+    except Exception as e:
+        print(f"[cloud_storage] persist marker error: {e}")
+
+
 def persist(filepath) -> bool:
     """
     Envia um arquivo local para a branch data-store após escrita local.
@@ -378,6 +424,11 @@ def persist(filepath) -> bool:
         print(f"[cloud_storage] persist uploading: {path_str} ({len(content)} bytes)")
         result = _upload_file(token, repo, path_str, content)
         print(f"[cloud_storage] persist result: {result} for {path_str}")
+
+        # Criar marker na primeira persistência bem-sucedida
+        if result:
+            _ensure_persist_marker(token, repo)
+
         return result
 
     except Exception as e:
