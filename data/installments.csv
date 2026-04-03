@@ -1,5 +1,4 @@
 id,descricao,nota,categoria,grupo,conta_cartao,valor_parcela,parcelas_total,start_month,ativo
-be30fee4-b307-4a18-a6e3-726f2eaf128a,IPTU,IPTU parcelado,Moradia,Casa,Pix,114.0,8,2026-03,True
 b02618de-682e-492f-b6f3-ed01339292df,Mecânico,Conserto,Transporte,Carro,Cartão Renato,116.49,3,2026-02,True
 617f248e-b5da-4ec5-b264-92a49e49306d,Exames Ana,Exames médicos,Saúde,Saúde,Cartão Ana,93.75,2,2026-04,True
 34978723-0b5c-4bb2-b701-439180bc8cf3,Liquidificador,,Casa,Casa,Cartão Renato,55.0,2,2026-04,True
