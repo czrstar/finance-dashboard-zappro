@@ -17,10 +17,8 @@ import streamlit as st
 import finance_utils as fu
 import cloud_storage
 
-# Cloud sync desabilitado temporariamente — persist() ainda não funciona
-# corretamente, então sync_from_cloud sobrescreve dados bons com dados antigos.
-# Reabilitar quando persist() estiver 100% funcional.
-# cloud_storage.sync_from_cloud()
+# Sincronizar dados da nuvem (GitHub data-store) no início de cada deployment
+cloud_storage.sync_from_cloud()
 
 # ---------------------------------------------------------------------------
 # Configuração da página
@@ -572,7 +570,7 @@ current_month = settings["current_month"]
 # Sidebar — navegação
 # ---------------------------------------------------------------------------
 
-st.sidebar.markdown("""
+st.sidebar.markdown(f"""
 <div style="text-align:center; padding: 10px 0 6px 0;">
     <div style="font-size: 2rem;">💰</div>
     <div style="font-size: 1.2rem; font-weight: 700; color: white;">Finanças Pessoais</div>

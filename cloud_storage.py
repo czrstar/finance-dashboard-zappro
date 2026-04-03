@@ -46,22 +46,32 @@ _PERSIST_DIRS = [
 
 # Cache de SHAs para updates (Contents API precisa do SHA atual)
 _sha_cache: dict[str, str] = {}
+_branch_checked: bool = False
 
 
 def _get_config() -> tuple[str, str]:
-    """Obtém token e repo de st.secrets ou env vars."""
+    """Obtém token e repo de st.secrets ou env vars.
+    Tenta múltiplos caminhos de acesso para máxima compatibilidade."""
     token, repo = "", ""
     try:
         import streamlit as st
-        # Bracket access is more reliable across Streamlit versions
-        try:
-            token = st.secrets["GITHUB_TOKEN"]
-        except (KeyError, AttributeError):
-            pass
-        try:
-            repo = st.secrets["GITHUB_REPO"]
-        except (KeyError, AttributeError):
-            pass
+        s = st.secrets
+        # Tenta acesso direto (top-level keys)
+        for method in [
+            lambda k: s[k],
+            lambda k: s.get(k, ""),
+            lambda k: getattr(s, k, ""),
+        ]:
+            if not token:
+                try:
+                    token = method("GITHUB_TOKEN") or ""
+                except Exception:
+                    pass
+            if not repo:
+                try:
+                    repo = method("GITHUB_REPO") or ""
+                except Exception:
+                    pass
     except Exception:
         pass
     if not token:
@@ -337,10 +347,16 @@ def persist(filepath) -> bool:
     Envia um arquivo local para a branch data-store após escrita local.
     Chamado automaticamente por finance_utils após cada save.
     """
+    global _branch_checked
     token, repo = _get_config()
     if not token or not repo or not _requests:
         print(f"[cloud_storage] persist SKIP — token={bool(token)} repo={bool(repo)} requests={bool(_requests)}")
         return False
+
+    # Lazy: garante que a branch data-store existe (uma vez por sessão)
+    if not _branch_checked:
+        _ensure_branch_exists(token, repo)
+        _branch_checked = True
 
     try:
         p = Path(filepath)
