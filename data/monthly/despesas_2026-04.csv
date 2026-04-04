@@ -1,9 +1,9 @@
 descricao,categoria,previsto,real,diferenca
 Aluguel/IPTU,Moradia,1200.0,0.0,-1200.0
 Internet + plano movel (2),Moradia,165.0,165.0,0.0
-Pagamento de veiculo,Transporte,344.0,560.49,216.49
-Corte de cabelo Renato,Cuidados pessoais,109.0,481.33,372.33
-Unhas Ana,Cuidados pessoais,77.0,0.0,-77.0
+Pagamento de veiculo,Transporte,344.0,344.0,0.0
+Corte de cabelo Renato,Cuidados pessoais,109.0,109.0,0.0
+Unhas Ana,Cuidados pessoais,77.0,372.33,295.33
 Academia (2) (cartão),Cuidados pessoais,199.0,0.0,-199.0
 Yoga (cartão),Cuidados pessoais,117.0,0.0,-117.0
 Cartao de todos (cartão),Cuidados pessoais,33.0,0.0,-33.0
@@ -27,5 +27,5 @@ Entretenimento,Entretenimento,400.0,0.0,-400.0
 Farmacia,Cuidados pessoais,150.0,33.18,-116.82
 Comida fora,Extra,150.0,0.0,-150.0
 Gastos inesperados,Extra,800.0,0.0,-800.0
-Carro,Transporte,400.0,354.69,-45.31
+Carro,Transporte,400.0,216.49,-183.51
 Apartamento,Poupanças,2500.0,0.0,-2500.0
