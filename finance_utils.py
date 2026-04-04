@@ -1563,15 +1563,21 @@ def sync_all_to_budget(month: str, month_dir: Path) -> dict:
 
     def _name_match(bnorm: str, desc_norm: str) -> bool:
         bnorm_no_conta = bnorm.replace("conta de ", "") if bnorm.startswith("conta de ") else None
-        return (
-            bnorm == desc_norm
+        if (bnorm == desc_norm
             or bnorm in desc_norm
             or desc_norm in bnorm
             or (bnorm_no_conta is not None and (
                 bnorm_no_conta == desc_norm
                 or bnorm_no_conta in desc_norm
-                or desc_norm in bnorm_no_conta))
-        )
+                or desc_norm in bnorm_no_conta))):
+            return True
+        # Word overlap: if the first significant word (4+ chars) of one
+        # appears in the other, consider a match. Handles "Apple iCloud" ↔ "Apple cloud".
+        words_a = [w for w in bnorm.split() if len(w) >= 4]
+        words_b = [w for w in desc_norm.split() if len(w) >= 4]
+        if words_a and words_b and words_a[0] == words_b[0]:
+            return True
+        return False
 
     # 1. Bills — three-pass matching
     bills = sync_bills_for_month(month)
@@ -1676,15 +1682,28 @@ def sync_all_to_budget(month: str, month_dir: Path) -> dict:
                         break
 
             # Step 3: fall back to category match (skip rows reserved by bills)
+            # Prefer "generic" rows (desc contains "extra", "outros", "geral",
+            # or matches the category name itself) over specific named rows.
             if matched_idx is None:
+                _generic_idx = None
+                _specific_idx = None
                 for idx, row in df.iterrows():
                     if idx in reserved_rows:
                         continue
                     row_cat = _normalize(str(row.get("categoria", "")))
                     row_desc = _normalize(str(row.get("descricao", "")))
                     if row_cat == t_cat or row_desc == t_cat:
-                        matched_idx = idx
-                        break
+                        # Is this a "generic/catch-all" row?
+                        if any(kw in row_desc for kw in ("extra", "outros", "geral", "diversos")) or row_desc == row_cat:
+                            if _generic_idx is None:
+                                _generic_idx = idx
+                        else:
+                            if _specific_idx is None:
+                                _specific_idx = idx
+                if _generic_idx is not None:
+                    matched_idx = _generic_idx
+                elif _specific_idx is not None:
+                    matched_idx = _specific_idx
 
             if matched_idx is not None:
                 row_trans_totals[matched_idx] = row_trans_totals.get(matched_idx, 0.0) + t_val
@@ -1711,8 +1730,8 @@ def sync_all_to_budget(month: str, month_dir: Path) -> dict:
     # Each active installment for this month adds its valor_parcela to the
     # matching budget row (by description first, then category fallback).
     inst = get_installments_for_month(month)
+    row_inst_totals: dict[int, float] = {}
     if not inst.empty:
-        row_inst_totals: dict[int, float] = {}
 
         for _, i in inst.iterrows():
             i_desc = _normalize(str(i.get("descricao", "")))
@@ -1728,16 +1747,26 @@ def sync_all_to_budget(month: str, month_dir: Path) -> dict:
                 if bud_desc and _name_match(i_desc, bud_desc):
                     matched_idx = idx
                     break
-            # Second: category fallback (skip bill-reserved rows)
+            # Second: category fallback (skip reserved, prefer generic rows)
             if matched_idx is None:
+                _generic_idx = None
+                _specific_idx = None
                 for idx, row in df.iterrows():
                     if idx in reserved_rows:
                         continue
                     row_cat = _normalize(str(row.get("categoria", "")))
                     row_desc = _normalize(str(row.get("descricao", "")))
                     if row_cat == i_cat or row_desc == i_cat:
-                        matched_idx = idx
-                        break
+                        if any(kw in row_desc for kw in ("extra", "outros", "geral", "diversos")) or row_desc == row_cat:
+                            if _generic_idx is None:
+                                _generic_idx = idx
+                        else:
+                            if _specific_idx is None:
+                                _specific_idx = idx
+                if _generic_idx is not None:
+                    matched_idx = _generic_idx
+                elif _specific_idx is not None:
+                    matched_idx = _specific_idx
             if matched_idx is not None:
                 row_inst_totals[matched_idx] = row_inst_totals.get(matched_idx, 0.0) + i_val
 
@@ -1759,6 +1788,50 @@ def sync_all_to_budget(month: str, month_dir: Path) -> dict:
                     break
             trans_amount = row_trans_totals.get(idx, 0.0)
             correct_real = bill_amount + trans_amount + i_total
+            if abs(correct_real - current_real) > 0.01:
+                df.at[idx, "real"] = correct_real
+                changed = True
+
+    # Pass 5: Subscriptions (assinaturas ativas) → budget rows
+    # These are auto-paid (credit card), so always count as "real".
+    subs = load_subscriptions()
+    active_subs = [s for s in subs if s.get("ativo", True)]
+    _debug["subs"] = len(active_subs)
+    if active_subs:
+        row_sub_totals: dict[int, float] = {}
+
+        for s in active_subs:
+            s_name = _normalize(str(s.get("nome", "")))
+            s_val = float(s.get("valor", 0))
+            if s_val == 0:
+                continue
+
+            matched_idx = None
+            # Step 1: match subscription name → budget description
+            for idx, row in df.iterrows():
+                bud_desc = _normalize(str(row.get("descricao", "")))
+                if bud_desc and _name_match(s_name, bud_desc):
+                    matched_idx = idx
+                    break
+
+            if matched_idx is not None:
+                row_sub_totals[matched_idx] = row_sub_totals.get(matched_idx, 0.0) + s_val
+                _debug.setdefault("sub_matches", []).append(f"{s_name}({s_val:.2f})→row[{matched_idx}]={df.at[matched_idx, 'descricao']}")
+            else:
+                _debug.setdefault("sub_matches", []).append(f"{s_name}({s_val:.2f})→NO MATCH")
+
+        # Apply: recalculate real = bill + trans + inst + sub for each matched row
+        for idx, s_total in row_sub_totals.items():
+            current_real = float(df.at[idx, "real"]) if pd.notna(df.at[idx, "real"]) else 0.0
+            bill_amount = 0.0
+            for bi, ridx in bill_to_row.items():
+                if ridx == idx and bi in bill_matched:
+                    b = bills[bi]
+                    bill_amount = b["valor_real"] if b["valor_real"] is not None else b.get("valor", 0)
+                    break
+            trans_amount = row_trans_totals.get(idx, 0.0)
+            inst_amount = row_inst_totals.get(idx, 0.0)
+            correct_real = bill_amount + trans_amount + inst_amount + s_total
             if abs(correct_real - current_real) > 0.01:
                 df.at[idx, "real"] = correct_real
                 changed = True
