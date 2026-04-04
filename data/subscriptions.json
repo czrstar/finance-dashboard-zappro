@@ -58,15 +58,5 @@
     "email": "",
     "obs": "2 planos",
     "ativo": true
-  },
-  {
-    "id": "d573460b-6ab5-41b7-a963-8b18c908059a",
-    "nome": "Yoga",
-    "valor": 117.0,
-    "dia_desconto": 1,
-    "site": "",
-    "email": "",
-    "obs": "Cartão",
-    "ativo": true
   }
 ]
