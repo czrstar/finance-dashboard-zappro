@@ -1652,8 +1652,10 @@ def sync_all_to_budget(month: str, month_dir: Path) -> dict:
             if t_val == 0:
                 continue
 
+            t_grupo = _normalize(str(t.get("grupo", "")))
             matched_idx = None
-            # First: try to match transaction description → budget description
+
+            # Step 1: match transaction description → budget description
             for idx, row in df.iterrows():
                 bud_desc = _normalize(str(row.get("descricao", "")))
                 if not bud_desc:
@@ -1662,11 +1664,22 @@ def sync_all_to_budget(month: str, month_dir: Path) -> dict:
                     matched_idx = idx
                     break
 
-            # Second: fall back to category match (skip rows reserved by bills)
+            # Step 2: match transaction grupo → budget description
+            # e.g. grupo "Farmácia" matches budget row "Farmacia"
+            if matched_idx is None and t_grupo:
+                for idx, row in df.iterrows():
+                    bud_desc = _normalize(str(row.get("descricao", "")))
+                    if not bud_desc:
+                        continue
+                    if _name_match(t_grupo, bud_desc):
+                        matched_idx = idx
+                        break
+
+            # Step 3: fall back to category match (skip rows reserved by bills)
             if matched_idx is None:
                 for idx, row in df.iterrows():
                     if idx in reserved_rows:
-                        continue  # skip bill-reserved rows like "Pagamento de veiculo"
+                        continue
                     row_cat = _normalize(str(row.get("categoria", "")))
                     row_desc = _normalize(str(row.get("descricao", "")))
                     if row_cat == t_cat or row_desc == t_cat:
