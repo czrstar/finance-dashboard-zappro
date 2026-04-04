@@ -24,7 +24,7 @@ cloud_storage.sync_from_cloud()
 # Configuração da página
 # ---------------------------------------------------------------------------
 
-_APP_VERSION = "v9"
+_APP_VERSION = "v10"
 
 st.set_page_config(
     page_title="Finanças Pessoais",

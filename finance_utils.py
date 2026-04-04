@@ -1583,6 +1583,14 @@ def sync_all_to_budget(month: str, month_dir: Path) -> dict:
     bills = sync_bills_for_month(month)
     changed = False
 
+    # Reset ALL real values to 0 before recalculating from scratch.
+    # This prevents stale values from previous (possibly incorrect) syncs.
+    for idx in df.index:
+        old_val = float(df.at[idx, "real"] if pd.notna(df.at[idx, "real"]) else 0)
+        if old_val != 0.0:
+            df.at[idx, "real"] = 0.0
+            changed = True
+
     # Pass 0: Reserve rows for ALL bills by name
     bill_to_row: dict[int, int] = {}
     reserved_rows: set[int] = set()
