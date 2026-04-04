@@ -24,7 +24,7 @@ cloud_storage.sync_from_cloud()
 # Configuração da página
 # ---------------------------------------------------------------------------
 
-_APP_VERSION = "v8"
+_APP_VERSION = "v9"
 
 st.set_page_config(
     page_title="Finanças Pessoais",
@@ -722,7 +722,8 @@ st.sidebar.markdown(f"""
 if page == "📊 Dashboard":
     st.markdown(f'<div class="page-title">Dashboard</div>', unsafe_allow_html=True)
 
-    # Bill-to-budget sync now happens directly when toggling "Pago?" in Contas a Pagar
+    # Sync ALL sources (bills + transactions) → budget "real" column
+    fu.sync_all_to_budget(current_month, MONTH_DIR)
 
     # Period badge
     try:
@@ -1126,6 +1127,8 @@ elif page == "💳 Transações":
         else:
             fu.append_transaction(current_month, row)
             st.session_state["_gasto_flash"] = "✅ Lançamento salvo!"
+        # Sync transaction totals → budget "real" column
+        fu.sync_all_to_budget(current_month, MONTH_DIR)
         st.rerun()
 
     # --- Tabela ---
@@ -1167,6 +1170,7 @@ elif page == "💳 Transações":
             del_sel = st.selectbox("Selecionar", ids, format_func=_label, key="del_sel")
             if st.button("🗑️ Deletar", type="secondary"):
                 fu.delete_transaction(current_month, str(del_sel))
+                fu.sync_all_to_budget(current_month, MONTH_DIR)
                 st.success("Deletado.")
                 st.rerun()
 
@@ -1214,14 +1218,17 @@ elif page == "🎯 Limites & Categorias":
         st.subheader("🎯 Limites por Categoria")
         st.caption("Defina um orçamento máximo mensal para cada categoria de despesa.")
 
-        # Add new limit
+        # Add / Edit limit (set_budget_limit overwrites if category already exists)
+        _existing_limits = fu.load_budget_limits()
         with st.form("add_limit_form"):
             lc1, lc2 = st.columns(2)
             with lc1:
                 limit_cat = st.selectbox("Categoria", DEFAULT_CATS, key="limit_cat_sel")
             with lc2:
-                limit_val = st.number_input("Limite (R$)", min_value=0.01, step=50.0, value=500.0, key="limit_val_input")
-            if st.form_submit_button("➕ Adicionar Limite", use_container_width=True):
+                _default_val = _existing_limits.get(limit_cat, 500.0)
+                limit_val = st.number_input("Limite (R$)", min_value=0.01, step=50.0, value=float(_default_val), key="limit_val_input")
+            _limit_btn_label = "💾 Salvar Limite" if limit_cat in _existing_limits else "➕ Adicionar Limite"
+            if st.form_submit_button(_limit_btn_label, use_container_width=True):
                 fu.set_budget_limit(limit_cat, limit_val)
                 st.success(f"Limite de {fmt(limit_val)} definido para {limit_cat}!")
                 st.rerun()
@@ -1384,102 +1391,12 @@ elif page == "📋 Contas a Pagar":
                 if st.checkbox("Pago?", value=pago, key=f"bill_pago_{bill['id']}"):
                     if not pago:
                         fu.toggle_bill_paid(bills_month, bill["id"], MONTH_DIR)
-                        # --- INLINE budget sync with visible debug ---
-                        try:
-                            _bill_info = bill
-                            _bill_valor = float(_bill_info.get("valor_real", _bill_info.get("valor", 0)))
-                            _bill_cat = str(_bill_info.get("categoria", "")).lower().strip()
-                            _csv_path = MONTH_DIR / f"despesas_{bills_month}.csv"
-                            if _csv_path.exists():
-                                import unicodedata as _ud2
-                                _bdf = fu.load_month_csv(_csv_path)
-                                _bill_name_n = _ud2.normalize("NFD", _bill_info["nome"].lower().strip())
-                                _bill_name_n = "".join(c for c in _bill_name_n if _ud2.category(c) != "Mn")
-                                _target = None
-                                # Try name match first
-                                for _bi, _br in _bdf.iterrows():
-                                    _desc_n = _ud2.normalize("NFD", str(_br.get("descricao","")).lower().strip())
-                                    _desc_n = "".join(c for c in _desc_n if _ud2.category(c) != "Mn")
-                                    if _bill_name_n == _desc_n or _bill_name_n in _desc_n or _desc_n in _bill_name_n:
-                                        _target = _bi
-                                        break
-                                # Category fallback
-                                if _target is None and _bill_cat:
-                                    _owned = set()
-                                    _tmpl = fu.load_bills_template()
-                                    for _tb in _tmpl:
-                                        _tn = _ud2.normalize("NFD", _tb["nome"].lower().strip())
-                                        _tn = "".join(c for c in _tn if _ud2.category(c) != "Mn")
-                                        for _bi2, _br2 in _bdf.iterrows():
-                                            _dn2 = _ud2.normalize("NFD", str(_br2.get("descricao","")).lower().strip())
-                                            _dn2 = "".join(c for c in _dn2 if _ud2.category(c) != "Mn")
-                                            if _tn == _dn2 or _tn in _dn2 or _dn2 in _tn:
-                                                _owned.add(_bi2)
-                                                break
-                                    for _bi3, _br3 in _bdf.iterrows():
-                                        if _bi3 in _owned:
-                                            continue
-                                        _rc = str(_br3.get("categoria","")).lower().strip()
-                                        if _rc == _bill_cat:
-                                            _target = _bi3
-                                            break
-                                if _target is not None:
-                                    _bdf.at[_target, "real"] = _bill_valor
-                                    if "diferenca" in _bdf.columns:
-                                        _bdf["diferenca"] = pd.to_numeric(_bdf["real"], errors="coerce").fillna(0) - pd.to_numeric(_bdf["previsto"], errors="coerce").fillna(0)
-                                    fu.save_budget_csv(bills_month, _bdf, MONTH_DIR)
-                                    st.session_state["_sync_debug"] = {"ok": True, "msg": f"{_bill_info['nome']} ({_bill_valor}) → orçamento linha '{_bdf.at[_target, 'descricao']}' (idx={_target})"}
-                                else:
-                                    st.session_state["_sync_debug"] = {"ok": False, "msg": f"Não encontrou linha para '{_bill_info['nome']}' (cat={_bill_cat}). Owned rows={_owned if '_owned' in dir() else 'N/A'}. Budget cats: {[str(r.get('categoria','')) for _,r in _bdf.iterrows() if str(r.get('categoria','')).lower().strip() == _bill_cat]}"}
-                        except Exception as _e:
-                            st.session_state["_sync_debug"] = {"ok": False, "msg": f"Erro: {type(_e).__name__}: {_e}"}
+                        fu.sync_all_to_budget(bills_month, MONTH_DIR)
                         st.rerun()
                 else:
                     if pago:
                         fu.toggle_bill_paid(bills_month, bill["id"], MONTH_DIR)
-                        # Clear value from budget when unpaid
-                        try:
-                            _bill_info = bill
-                            _bill_cat = str(_bill_info.get("categoria", "")).lower().strip()
-                            _csv_path = MONTH_DIR / f"despesas_{bills_month}.csv"
-                            if _csv_path.exists():
-                                import unicodedata as _ud2
-                                _bdf = fu.load_month_csv(_csv_path)
-                                _bill_name_n = _ud2.normalize("NFD", _bill_info["nome"].lower().strip())
-                                _bill_name_n = "".join(c for c in _bill_name_n if _ud2.category(c) != "Mn")
-                                _target = None
-                                for _bi, _br in _bdf.iterrows():
-                                    _desc_n = _ud2.normalize("NFD", str(_br.get("descricao","")).lower().strip())
-                                    _desc_n = "".join(c for c in _desc_n if _ud2.category(c) != "Mn")
-                                    if _bill_name_n == _desc_n or _bill_name_n in _desc_n or _desc_n in _bill_name_n:
-                                        _target = _bi
-                                        break
-                                if _target is None and _bill_cat:
-                                    _owned = set()
-                                    _tmpl = fu.load_bills_template()
-                                    for _tb in _tmpl:
-                                        _tn = _ud2.normalize("NFD", _tb["nome"].lower().strip())
-                                        _tn = "".join(c for c in _tn if _ud2.category(c) != "Mn")
-                                        for _bi2, _br2 in _bdf.iterrows():
-                                            _dn2 = _ud2.normalize("NFD", str(_br2.get("descricao","")).lower().strip())
-                                            _dn2 = "".join(c for c in _dn2 if _ud2.category(c) != "Mn")
-                                            if _tn == _dn2 or _tn in _dn2 or _dn2 in _tn:
-                                                _owned.add(_bi2)
-                                                break
-                                    for _bi3, _br3 in _bdf.iterrows():
-                                        if _bi3 in _owned:
-                                            continue
-                                        _rc = str(_br3.get("categoria","")).lower().strip()
-                                        if _rc == _bill_cat:
-                                            _target = _bi3
-                                            break
-                                if _target is not None:
-                                    _bdf.at[_target, "real"] = 0.0
-                                    if "diferenca" in _bdf.columns:
-                                        _bdf["diferenca"] = pd.to_numeric(_bdf["real"], errors="coerce").fillna(0) - pd.to_numeric(_bdf["previsto"], errors="coerce").fillna(0)
-                                    fu.save_budget_csv(bills_month, _bdf, MONTH_DIR)
-                        except Exception:
-                            pass
+                        fu.sync_all_to_budget(bills_month, MONTH_DIR)
                         st.rerun()
             with c6:
                 if st.button("🗑️", key=f"del_bill_{bill['id']}"):
@@ -1577,11 +1494,35 @@ elif page == "🔄 Assinaturas":
                 f'</div>',
                 unsafe_allow_html=True,
             )
-            if st.button(f"🗑️ Remover {nome}", key=f"del_sub_{sub['id']}"):
-                fu.remove_subscription(sub["id"])
-                st.rerun()
+            _sub_c1, _sub_c2 = st.columns(2)
+            with _sub_c1:
+                if st.button(f"⏸️ Desativar {nome}", key=f"tog_sub_{sub['id']}"):
+                    fu.toggle_subscription(sub["id"])
+                    st.rerun()
+            with _sub_c2:
+                if st.button(f"🗑️ Remover {nome}", key=f"del_sub_{sub['id']}"):
+                    fu.remove_subscription(sub["id"])
+                    st.rerun()
     else:
-        st.info("Nenhuma assinatura cadastrada.")
+        st.info("Nenhuma assinatura ativa.")
+
+    # Show inactive subscriptions
+    inactive_subs = [s for s in subs if not s.get("ativo", True)]
+    if inactive_subs:
+        with st.expander(f"Assinaturas Inativas ({len(inactive_subs)})"):
+            for sub in inactive_subs:
+                nome = sub.get("nome", "—")
+                valor = fmt(sub.get("valor", 0))
+                st.markdown(f"~~{nome}~~ — {valor}/mês")
+                _ic1, _ic2 = st.columns(2)
+                with _ic1:
+                    if st.button(f"▶️ Reativar {nome}", key=f"react_sub_{sub['id']}"):
+                        fu.toggle_subscription(sub["id"])
+                        st.rerun()
+                with _ic2:
+                    if st.button(f"🗑️ Remover {nome}", key=f"del_inactive_{sub['id']}"):
+                        fu.remove_subscription(sub["id"])
+                        st.rerun()
 
 
 # ===========================================================================
@@ -1831,7 +1772,7 @@ elif page == "💳 Parcelamentos":
 elif page == "📊 Orçamento":
     st.markdown('<div class="page-title">Orçamento</div>', unsafe_allow_html=True)
 
-    # Bill-to-budget sync now happens directly when toggling "Pago?" in Contas a Pagar
+    # Budget sync: sync_all_to_budget handles bills, transactions, and installments
 
     _oc_cfg = fu.load_settings()
     _oc_cur = _oc_cfg["current_month"]
@@ -1851,6 +1792,9 @@ elif page == "📊 Orçamento":
     with col_oc_m:
         _oc_month_sel = st.selectbox("Mês", list(range(1, 13)), format_func=lambda m: calendar.month_abbr[m], index=_oc_month_def - 1, key="oc_month")
     mes_oc = f"{_oc_year_sel}-{_oc_month_sel:02d}"
+
+    # Sync ALL sources (bills + transactions) → budget "real" column
+    fu.sync_all_to_budget(mes_oc, MONTH_DIR)
 
     st.subheader(f"Orçamento — {month_label(mes_oc)}")
 
@@ -1965,6 +1909,7 @@ elif page == "⬆️ Upload":
             raw_path.write_bytes(uploaded.read())
             try:
                 df_prev = fu.load_month_csv(raw_path)
+                fu.save_budget_csv(mes, df_prev)
                 st.success(f"Arquivo salvo ({len(df_prev)} linhas)")
                 st.dataframe(df_prev[["descricao", "categoria", "previsto", "real", "diferenca", "recorrente", "parcelado"]].head(20))
             except Exception as e:
@@ -2011,6 +1956,56 @@ elif page == "💵 Receitas":
         df_rec_show["valor"] = df_rec_show["valor"].apply(fmt)
         st.dataframe(df_rec_show, use_container_width=True, hide_index=True)
         st.metric("Total geral", fmt(fu.load_receitas(RECEITAS_PATH)["valor"].sum()))
+
+        # --- Gerenciar receitas ---
+        st.subheader("Gerenciar")
+
+        def _rec_label(idx):
+            r = df_rec.iloc[idx]
+            return f"{r['mes']} | {r['fonte']} | {fmt(float(r['valor']))}"
+
+        rec_indices = list(range(len(df_rec)))
+        col_re, col_rd = st.columns(2)
+        with col_re:
+            st.caption("Editar")
+            rec_edit_idx = st.selectbox("Selecionar", rec_indices, format_func=_rec_label, key="rec_edit_sel")
+            if st.button("✏️ Carregar para edição", key="rec_edit_btn"):
+                st.session_state["_rec_edit_idx"] = rec_edit_idx
+                st.rerun()
+        with col_rd:
+            st.caption("Deletar")
+            rec_del_idx = st.selectbox("Selecionar", rec_indices, format_func=_rec_label, key="rec_del_sel")
+            if st.button("🗑️ Deletar receita", type="secondary", key="rec_del_btn"):
+                fu.delete_receita(rec_del_idx, RECEITAS_PATH)
+                st.success("Receita deletada.")
+                st.rerun()
+
+        # Edit form
+        if "_rec_edit_idx" in st.session_state:
+            _rei = st.session_state["_rec_edit_idx"]
+            _rer = df_rec.iloc[_rei]
+            st.markdown("---")
+            st.subheader(f"✏️ Editando: {_rer['fonte']} ({_rer['mes']})")
+            if st.button("↩ Cancelar edição", key="rec_cancel_edit"):
+                st.session_state.pop("_rec_edit_idx", None)
+                st.rerun()
+            with st.form("form_receita_edit"):
+                c1, c2 = st.columns(2)
+                with c1:
+                    e_mes = st.text_input("Mês (YYYY-MM)", value=str(_rer["mes"]))
+                    e_fonte = st.text_input("Fonte", value=str(_rer["fonte"]))
+                with c2:
+                    e_valor = st.text_input("Valor (R$)", value=str(_rer["valor"]))
+                    e_obs = st.text_input("Observação", value=str(_rer.get("obs", "")))
+                if st.form_submit_button("💾 Salvar alterações"):
+                    e_val_clean = fu.clean_currency(e_valor)
+                    if e_val_clean > 0 and e_fonte.strip() and re.match(r"^\d{4}-\d{2}$", e_mes.strip()):
+                        fu.update_receita(_rei, e_mes.strip(), e_fonte.strip(), e_val_clean, e_obs.strip(), RECEITAS_PATH)
+                        st.session_state.pop("_rec_edit_idx", None)
+                        st.success("Receita atualizada!")
+                        st.rerun()
+                    else:
+                        st.error("Verifique os campos.")
 
 
 # ===========================================================================

@@ -680,6 +680,36 @@ def save_receita(mes: str, fonte: str, valor: float, obs: str = "",
     _persist(p)
 
 
+def delete_receita(index: int, path: Union[str, Path] = RECEITAS_PATH):
+    """Remove a receita at the given DataFrame index."""
+    p = Path(path)
+    if not p.exists():
+        return
+    df = pd.read_csv(p)
+    if index < 0 or index >= len(df):
+        return
+    df = df.drop(index).reset_index(drop=True)
+    df.to_csv(p, index=False)
+    _persist(p)
+
+
+def update_receita(index: int, mes: str, fonte: str, valor: float, obs: str = "",
+                   path: Union[str, Path] = RECEITAS_PATH):
+    """Update a receita at the given DataFrame index."""
+    p = Path(path)
+    if not p.exists():
+        return
+    df = pd.read_csv(p)
+    if index < 0 or index >= len(df):
+        return
+    df.at[index, "mes"] = mes
+    df.at[index, "fonte"] = fonte
+    df.at[index, "valor"] = valor
+    df.at[index, "obs"] = obs
+    df.to_csv(p, index=False)
+    _persist(p)
+
+
 # ---------------------------------------------------------------------------
 # Insights automáticos
 # ---------------------------------------------------------------------------
@@ -1602,11 +1632,116 @@ def sync_all_to_budget(month: str, month_dir: Path) -> None:
 
     # 2. Build transaction totals by category (for rows not matched to any bill)
     trans = load_transactions(month)
-    trans_by_cat = {}
+    trans_by_cat: dict[str, float] = {}
     if not trans.empty and "categoria" in trans.columns:
         for cat, grp in trans.groupby("categoria"):
             cat_norm = _normalize(str(cat))
             trans_by_cat[cat_norm] = float(grp["valor"].sum())
+
+    # Pass 3: Add transaction totals to budget rows.
+    # Strategy: match each transaction to a budget row by DESCRIPTION first,
+    # then fall back to CATEGORY. This ensures "Mercado" transactions go to
+    # the "Mercado" budget row, not just any "Alimentação" row.
+    row_trans_totals: dict[int, float] = {}  # budget row idx → sum of transactions
+    if not trans.empty and "categoria" in trans.columns:
+
+        for _, t in trans.iterrows():
+            t_desc = _normalize(str(t.get("descricao", "")))
+            t_cat = _normalize(str(t.get("categoria", "")))
+            t_val = float(t.get("valor", 0))
+            if t_val == 0:
+                continue
+
+            matched_idx = None
+            # First: try to match transaction description → budget description
+            for idx, row in df.iterrows():
+                bud_desc = _normalize(str(row.get("descricao", "")))
+                if not bud_desc:
+                    continue
+                if _name_match(t_desc, bud_desc):
+                    matched_idx = idx
+                    break
+
+            # Second: fall back to category match (first unreserved row)
+            if matched_idx is None:
+                for idx, row in df.iterrows():
+                    row_cat = _normalize(str(row.get("categoria", "")))
+                    row_desc = _normalize(str(row.get("descricao", "")))
+                    if row_cat == t_cat or row_desc == t_cat:
+                        matched_idx = idx
+                        break
+
+            if matched_idx is not None:
+                row_trans_totals[matched_idx] = row_trans_totals.get(matched_idx, 0.0) + t_val
+
+        # Apply totals: for each budget row, real = bill_amount + transaction_total
+        for idx, t_total in row_trans_totals.items():
+            old_real = float(df.at[idx, "real"]) if pd.notna(df.at[idx, "real"]) else 0.0
+            # Get bill amount already applied to this row (from Pass 1)
+            bill_amount = 0.0
+            for bi, ridx in bill_to_row.items():
+                if ridx == idx and bi in bill_matched:
+                    b = bills[bi]
+                    bill_amount = b["valor_real"] if b["valor_real"] is not None else b.get("valor", 0)
+                    break
+            new_real = bill_amount + t_total
+            if abs(new_real - old_real) > 0.01:
+                df.at[idx, "real"] = new_real
+                changed = True
+
+    # Pass 4: Parcelamentos (installments) → budget rows
+    # Each active installment for this month adds its valor_parcela to the
+    # matching budget row (by description first, then category fallback).
+    inst = get_installments_for_month(month)
+    if not inst.empty:
+        row_inst_totals: dict[int, float] = {}
+
+        for _, i in inst.iterrows():
+            i_desc = _normalize(str(i.get("descricao", "")))
+            i_cat = _normalize(str(i.get("categoria", "")))
+            i_val = float(i.get("valor_parcela", 0))
+            if i_val == 0:
+                continue
+
+            matched_idx = None
+            # First: match installment description → budget description
+            for idx, row in df.iterrows():
+                bud_desc = _normalize(str(row.get("descricao", "")))
+                if bud_desc and _name_match(i_desc, bud_desc):
+                    matched_idx = idx
+                    break
+            # Second: category fallback
+            if matched_idx is None:
+                for idx, row in df.iterrows():
+                    row_cat = _normalize(str(row.get("categoria", "")))
+                    row_desc = _normalize(str(row.get("descricao", "")))
+                    if row_cat == i_cat or row_desc == i_cat:
+                        matched_idx = idx
+                        break
+            if matched_idx is not None:
+                row_inst_totals[matched_idx] = row_inst_totals.get(matched_idx, 0.0) + i_val
+
+        # Apply: add installment totals on top of existing real (which may
+        # already include bills from Pass 1/2 and transactions from Pass 3).
+        for idx, i_total in row_inst_totals.items():
+            current_real = float(df.at[idx, "real"]) if pd.notna(df.at[idx, "real"]) else 0.0
+            new_real = current_real + i_total
+            # But we need to avoid double-counting if this same row also had
+            # Pass 3 values. Pass 3 already set real = bill_amount + trans_total.
+            # So we just ADD installment total on top.
+            # To make this idempotent, we need to track what the "clean" value is.
+            # Clean approach: recalculate from scratch.
+            bill_amount = 0.0
+            for bi, ridx in bill_to_row.items():
+                if ridx == idx and bi in bill_matched:
+                    b = bills[bi]
+                    bill_amount = b["valor_real"] if b["valor_real"] is not None else b.get("valor", 0)
+                    break
+            trans_amount = row_trans_totals.get(idx, 0.0)
+            correct_real = bill_amount + trans_amount + i_total
+            if abs(correct_real - current_real) > 0.01:
+                df.at[idx, "real"] = correct_real
+                changed = True
 
     if changed:
         if "diferenca" in df.columns:
