@@ -1532,26 +1532,26 @@ def _sync_bills_to_budget(month: str, month_dir: Path) -> None:
         save_budget_csv(month, df, month_dir)
 
 
-def sync_all_to_budget(month: str, month_dir: Path) -> None:
+def sync_all_to_budget(month: str, month_dir: Path) -> dict:
     """Master sync: update budget CSV 'real' column from ALL sources.
     - Contas a Pagar (bills marked as paid) — matched by name, then by category
     - Transações (individual expenses logged)
-    This is called when loading the Dashboard to ensure everything is up-to-date.
+    - Parcelamentos (installments active this month)
 
-    Uses the same three-pass logic as _sync_bills_to_budget:
-      Pass 0 — Reserve rows by name (all bills, paid or not)
-      Pass 1 — Set real for paid bills with reserved rows
-      Pass 2 — Category fallback for unmatched paid bills (unreserved rows only)
+    Returns a debug dict with sync details.
     """
+    _debug = {"bills": 0, "trans": 0, "inst": 0, "trans_matches": [], "trans_total": 0.0, "changed": False}
     import unicodedata, re
 
     csv_path = month_dir / f"despesas_{month}.csv"
     if not csv_path.exists():
-        return
+        _debug["error"] = f"CSV not found: {csv_path}"
+        return _debug
 
     df = load_month_csv(csv_path)
     if df.empty or "descricao" not in df.columns or "real" not in df.columns:
-        return
+        _debug["error"] = f"CSV empty or missing columns. Cols: {list(df.columns)}"
+        return _debug
 
     def _normalize(s: str) -> str:
         s = str(s).lower().strip()
@@ -1632,6 +1632,9 @@ def sync_all_to_budget(month: str, month_dir: Path) -> None:
 
     # 2. Build transaction totals by category (for rows not matched to any bill)
     trans = load_transactions(month)
+    _debug["trans"] = len(trans)
+    _debug["trans_total"] = float(trans["valor"].sum()) if not trans.empty and "valor" in trans.columns else 0.0
+    _debug["bills"] = len(bills)
     trans_by_cat: dict[str, float] = {}
     if not trans.empty and "categoria" in trans.columns:
         for cat, grp in trans.groupby("categoria"):
@@ -1639,10 +1642,7 @@ def sync_all_to_budget(month: str, month_dir: Path) -> None:
             trans_by_cat[cat_norm] = float(grp["valor"].sum())
 
     # Pass 3: Add transaction totals to budget rows.
-    # Strategy: match each transaction to a budget row by DESCRIPTION first,
-    # then fall back to CATEGORY. This ensures "Mercado" transactions go to
-    # the "Mercado" budget row, not just any "Alimentação" row.
-    row_trans_totals: dict[int, float] = {}  # budget row idx → sum of transactions
+    row_trans_totals: dict[int, float] = {}
     if not trans.empty and "categoria" in trans.columns:
 
         for _, t in trans.iterrows():
@@ -1673,6 +1673,9 @@ def sync_all_to_budget(month: str, month_dir: Path) -> None:
 
             if matched_idx is not None:
                 row_trans_totals[matched_idx] = row_trans_totals.get(matched_idx, 0.0) + t_val
+                _debug["trans_matches"].append(f"{t_desc}({t_val:.2f})→row[{matched_idx}]={df.at[matched_idx, 'descricao']}")
+            else:
+                _debug["trans_matches"].append(f"{t_desc}({t_val:.2f})→NO MATCH (cat={t_cat})")
 
         # Apply totals: for each budget row, real = bill_amount + transaction_total
         for idx, t_total in row_trans_totals.items():
@@ -1743,10 +1746,16 @@ def sync_all_to_budget(month: str, month_dir: Path) -> None:
                 df.at[idx, "real"] = correct_real
                 changed = True
 
+    _debug["changed"] = changed
+    _debug["row_trans_totals"] = {int(k): round(v, 2) for k, v in row_trans_totals.items()}
     if changed:
         if "diferenca" in df.columns:
             df["diferenca"] = pd.to_numeric(df["real"], errors="coerce").fillna(0) - pd.to_numeric(df["previsto"], errors="coerce").fillna(0)
         save_budget_csv(month, df, month_dir)
+        _debug["saved"] = True
+    else:
+        _debug["saved"] = False
+    return _debug
 
 
 # ---------------------------------------------------------------------------

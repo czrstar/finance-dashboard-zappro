@@ -1794,9 +1794,13 @@ elif page == "📊 Orçamento":
     mes_oc = f"{_oc_year_sel}-{_oc_month_sel:02d}"
 
     # Sync ALL sources (bills + transactions) → budget "real" column
-    fu.sync_all_to_budget(mes_oc, MONTH_DIR)
+    _sync_debug = fu.sync_all_to_budget(mes_oc, MONTH_DIR) or {}
 
     st.subheader(f"Orçamento — {month_label(mes_oc)}")
+
+    # Debug panel (temporary)
+    with st.expander("🔧 Sync Debug", expanded=False):
+        st.json(_sync_debug)
 
     _OC_DEFAULT_CATS = [
         "Alimentação", "Moradia", "Transporte", "Saúde", "Lazer",
