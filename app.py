@@ -1854,6 +1854,21 @@ elif page == "📊 Orçamento":
     with mc3:
         st.metric("Diferença", fmt(_oc_diff), delta=f"{_oc_diff:+,.2f}".replace(",", "."))
 
+    # --- Delete rows section ---
+    if not edited_oc.empty:
+        with st.expander("🗑️ Remover linhas do orçamento"):
+            _del_options = [f"{i}: {row['descricao']} ({row['categoria']})" for i, row in edited_oc.iterrows()]
+            _del_selected = st.multiselect("Selecione as linhas para remover:", _del_options, key=f"oc_del_{mes_oc}")
+            if _del_selected and st.button("🗑️ Remover selecionadas", type="secondary"):
+                _del_indices = [int(s.split(":")[0]) for s in _del_selected]
+                _oc_after_del = edited_oc.drop(index=_del_indices).reset_index(drop=True)
+                _oc_after_del["descricao"] = _oc_after_del.get("descricao", pd.Series([])).fillna("").astype(str)
+                _oc_after_del["categoria"] = _oc_after_del.get("categoria", pd.Series([])).fillna("").astype(str)
+                _oc_after_del["real"] = pd.to_numeric(_oc_after_del.get("real", pd.Series([])), errors="coerce").fillna(0.0)
+                fu.save_budget_csv(mes_oc, _oc_after_del, MONTH_DIR)
+                st.success(f"✅ {len(_del_indices)} linha(s) removida(s) e salvo.")
+                st.rerun()
+
     if st.button("💾 Salvar Orçamento", type="primary"):
         _oc_save = edited_oc.copy()
         _oc_save["descricao"] = _oc_save.get("descricao", pd.Series([""] * len(_oc_save))).fillna("").astype(str)
