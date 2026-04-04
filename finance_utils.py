@@ -1662,9 +1662,11 @@ def sync_all_to_budget(month: str, month_dir: Path) -> dict:
                     matched_idx = idx
                     break
 
-            # Second: fall back to category match (first unreserved row)
+            # Second: fall back to category match (skip rows reserved by bills)
             if matched_idx is None:
                 for idx, row in df.iterrows():
+                    if idx in reserved_rows:
+                        continue  # skip bill-reserved rows like "Pagamento de veiculo"
                     row_cat = _normalize(str(row.get("categoria", "")))
                     row_desc = _normalize(str(row.get("descricao", "")))
                     if row_cat == t_cat or row_desc == t_cat:
@@ -1713,9 +1715,11 @@ def sync_all_to_budget(month: str, month_dir: Path) -> dict:
                 if bud_desc and _name_match(i_desc, bud_desc):
                     matched_idx = idx
                     break
-            # Second: category fallback
+            # Second: category fallback (skip bill-reserved rows)
             if matched_idx is None:
                 for idx, row in df.iterrows():
+                    if idx in reserved_rows:
+                        continue
                     row_cat = _normalize(str(row.get("categoria", "")))
                     row_desc = _normalize(str(row.get("descricao", "")))
                     if row_cat == i_cat or row_desc == i_cat:
