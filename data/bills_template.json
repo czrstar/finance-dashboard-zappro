@@ -110,5 +110,13 @@
     "dia_vencimento": 10,
     "valor": 900.08,
     "ativo": true
+  },
+  {
+    "id": "7a20c74a-763c-4d42-bfb7-f446cda9a734",
+    "nome": "Entrada AP",
+    "categoria": "Investimentos",
+    "dia_vencimento": 10,
+    "valor": 2100.0,
+    "ativo": true
   }
 ]
