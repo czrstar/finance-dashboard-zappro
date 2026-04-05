@@ -2,7 +2,7 @@ id,data,descricao,nota,categoria,grupo,valor,conta_cartao,recorrente
 bee753e0-ddc8-409b-9027-b8cc1f6cc0a5,2026-04-03,Alcool,4.69,Transporte,Transporte,100.0,Cartão Renato,False
 21011617-3d4f-448a-93e5-0535d56fe8bd,2026-04-03,Farmacia,,Cuidados pessoais,Farmácia,33.18,Cartão Renato,False
 c4ef9ede-e0a5-4373-9d9a-c2250c3622fe,2026-04-03,Sassa,,Alimentação,Comida,38.0,Cartão Renato,False
-30cf3755-dd8b-45fa-b7c1-f823eff0be3d,2026-04-03,Patrocinio,,Alimentação,Comida,13.92,Cartão Renato,False
+30cf3755-dd8b-45fa-b7c1-f823eff0be3d,2026-04-03,Patrocinio,,Alimentação,Mercado,13.92,Cartão Renato,False
 63d3a3d2-e673-4699-8d62-272741808c4f,2026-04-03,McDonalds,,Alimentação,Comida,30.8,Cartão Renato,False
 eb1a1e13-4ddb-4765-9a20-24a32063a58a,2026-04-03,Amor e Saude,Exames Renato,Cuidados pessoais,Saúde,329.0,Cartão Renato,False
 b9660345-9d90-4f70-b500-ead0efb0a0e9,2026-04-04,Barbudus,,Entretenimento,Lazer,129.18,Cartão Renato,False
