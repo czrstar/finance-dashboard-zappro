@@ -102,5 +102,13 @@
     "dia_vencimento": 10,
     "valor": 150.0,
     "ativo": true
+  },
+  {
+    "id": "180b1f4f-3f0b-499c-be92-6aaa128e4a83",
+    "nome": "Evoluçao de Obra",
+    "categoria": "Moradia",
+    "dia_vencimento": 10,
+    "valor": 900.08,
+    "ativo": true
   }
 ]
