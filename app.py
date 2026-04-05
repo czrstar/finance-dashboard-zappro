@@ -24,7 +24,16 @@ cloud_storage.sync_from_cloud()
 # Configuração da página
 # ---------------------------------------------------------------------------
 
-_APP_VERSION = "v10"
+_APP_VERSION = "v11"
+
+# Master category list — single source of truth for all pages
+MASTER_CATS = [
+    "Alimentação", "Moradia", "Transporte", "Saúde", "Lazer",
+    "Educação", "Tecnologia", "Cuidados Pessoais", "Casa",
+    "Impostos", "Entretenimento", "Poupanças", "Investimentos",
+    "Animais de estimação", "Gastos profissionais", "Móveis",
+    "Serviços", "Vestuário", "Extra", "Outro",
+]
 
 st.set_page_config(
     page_title="Finanças Pessoais",
@@ -1031,11 +1040,7 @@ elif page == "💳 Transações":
 
     # --- Categorias ---
     base_path = MONTH_DIR / f"despesas_{current_month}.csv"
-    DEFAULT_CATS = [
-        "Alimentação", "Moradia", "Transporte", "Saúde", "Lazer",
-        "Educação", "Tecnologia", "Cuidados Pessoais", "Casa",
-        "Impostos", "Entretenimento", "Outro",
-    ]
+    DEFAULT_CATS = MASTER_CATS
     cat_options = DEFAULT_CATS[:]
     if base_path.exists():
         try:
@@ -1197,11 +1202,7 @@ elif page == "🎯 Limites & Categorias":
         st.subheader("📂 Categorias")
         st.caption("Gerencie suas categorias de gastos e receitas.")
 
-        DEFAULT_CATS = [
-            "Alimentação", "Moradia", "Transporte", "Saúde", "Lazer",
-            "Educação", "Tecnologia", "Cuidados Pessoais", "Casa",
-            "Impostos", "Entretenimento", "Vestuário",
-        ]
+        DEFAULT_CATS = MASTER_CATS
 
         # Show existing categories as tags
         cats_html = '<div style="display:flex;flex-wrap:wrap;gap:8px;margin:12px 0;">'
@@ -1301,7 +1302,7 @@ elif page == "🎯 Limites & Categorias":
 
 elif page == "📋 Contas a Pagar":
     st.markdown('<div class="page-title">Controle de Contas a Pagar</div>', unsafe_allow_html=True)
-    st.caption("v7 — sync direto")
+    st.caption(f"{_APP_VERSION} — sync direto")
 
     # Month navigation
     if "bills_month" not in st.session_state:
@@ -1336,7 +1337,7 @@ elif page == "📋 Contas a Pagar":
             bc1, bc2 = st.columns(2)
             with bc1:
                 bill_nome = st.text_input("Nome da conta", placeholder="Ex: Internet, Aluguel...")
-                bill_cat = st.selectbox("Categoria", ["Moradia", "Serviços", "Transporte", "Saúde", "Educação", "Outro"])
+                bill_cat = st.selectbox("Categoria", MASTER_CATS)
             with bc2:
                 bill_dia = st.number_input("Dia do vencimento", min_value=1, max_value=31, value=10)
                 bill_valor = st.number_input("Valor (R$)", min_value=0.01, step=10.0, value=100.0)
@@ -1564,11 +1565,7 @@ elif page == "💳 Parcelamentos":
         else:
             st.session_state.pop("_inst_edit_id", None)
 
-    DEFAULT_CATS_INST = [
-        "Alimentação", "Moradia", "Transporte", "Saúde", "Lazer",
-        "Educação", "Tecnologia", "Cuidados Pessoais", "Casa",
-        "Impostos", "Entretenimento", "Móveis", "Outro",
-    ]
+    DEFAULT_CATS_INST = MASTER_CATS
     _sgi = settings.get("grupos_default", fu.GRUPOS_DEFAULT)
     GRUPOS_INST = _sgi if "Outro" in _sgi else _sgi + ["Outro"]
     _sci = settings.get("contas_default", fu.CONTAS_DEFAULT)
@@ -1802,11 +1799,7 @@ elif page == "📊 Orçamento":
     with st.expander("🔧 Sync Debug", expanded=False):
         st.json(_sync_debug)
 
-    _OC_DEFAULT_CATS = [
-        "Alimentação", "Moradia", "Transporte", "Saúde", "Lazer",
-        "Educação", "Tecnologia", "Cuidados Pessoais", "Casa",
-        "Impostos", "Entretenimento", "Móveis", "Outro",
-    ]
+    _OC_DEFAULT_CATS = MASTER_CATS
 
     df_oc = fu.load_budget_csv(mes_oc, MONTH_DIR)
     _oc_extra_cats = sorted(c for c in df_oc["categoria"].unique() if str(c).strip() and c not in _OC_DEFAULT_CATS) if not df_oc.empty else []
