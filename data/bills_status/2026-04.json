@@ -26,5 +26,9 @@
   "56bd44e0-ff0b-47ce-85a9-025920b40b12": {
     "pago": true,
     "valor_real": null
+  },
+  "d590fd72-2158-4477-94f6-a882797bd893": {
+    "pago": true,
+    "valor_real": null
   }
 }
