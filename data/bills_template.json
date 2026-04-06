@@ -126,13 +126,5 @@
     "dia_vencimento": 10,
     "valor": 354.69,
     "ativo": true
-  },
-  {
-    "id": "90e4501f-302e-4ecc-a1eb-0d610df7c097",
-    "nome": "IPTU",
-    "categoria": "Transporte",
-    "dia_vencimento": 10,
-    "valor": 113.39,
-    "ativo": true
   }
 ]
