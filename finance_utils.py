@@ -1621,6 +1621,10 @@ def sync_all_to_budget(month: str, month_dir: Path) -> dict:
             bill_matched.add(bi)
 
     # Pass 2: Category fallback for unmatched paid bills (unreserved rows only)
+    # NOTE: Do NOT add to reserved_rows here — these rows must remain
+    # available for transactions in Pass 3.  Track amounts in pass2_amounts
+    # so Pass 3 can include them when computing the final real value.
+    pass2_amounts: dict[int, float] = {}
     unmatched_bills_by_cat: dict[str, float] = {}
     for bi, b in enumerate(bills):
         if bi in bill_matched or not b["pago"]:
@@ -1637,11 +1641,9 @@ def sync_all_to_budget(month: str, month_dir: Path) -> dict:
                 continue
             row_cat_norm = _normalize(str(row.get("categoria", "")))
             if row_cat_norm == cat_norm:
-                # REPLACE — never add to existing value
-                if abs(total_valor - float(row.get("real", 0))) > 0.01:
-                    df.at[idx, "real"] = total_valor
-                    changed = True
-                reserved_rows.add(idx)
+                df.at[idx, "real"] = total_valor
+                changed = True
+                pass2_amounts[idx] = total_valor
                 break
 
     # 2. Build transaction totals by category (for rows not matched to any bill)
@@ -1719,7 +1721,7 @@ def sync_all_to_budget(month: str, month_dir: Path) -> dict:
             else:
                 _debug["trans_matches"].append(f"{t_desc}({t_val:.2f})→NO MATCH (cat={t_cat})")
 
-        # Apply totals: for each budget row, real = bill_amount + transaction_total
+        # Apply totals: for each budget row, real = bill_amount (Pass1 + Pass2) + transaction_total
         for idx, t_total in row_trans_totals.items():
             old_real = float(df.at[idx, "real"]) if pd.notna(df.at[idx, "real"]) else 0.0
             # Get bill amount already applied to this row (from Pass 1)
@@ -1729,6 +1731,8 @@ def sync_all_to_budget(month: str, month_dir: Path) -> dict:
                     b = bills[bi]
                     bill_amount = b["valor_real"] if b["valor_real"] is not None else b.get("valor", 0)
                     break
+            # Also include Pass 2 category-fallback bill amounts
+            bill_amount += pass2_amounts.get(idx, 0.0)
             new_real = bill_amount + t_total
             if abs(new_real - old_real) > 0.01:
                 df.at[idx, "real"] = new_real
@@ -1794,6 +1798,7 @@ def sync_all_to_budget(month: str, month_dir: Path) -> dict:
                     b = bills[bi]
                     bill_amount = b["valor_real"] if b["valor_real"] is not None else b.get("valor", 0)
                     break
+            bill_amount += pass2_amounts.get(idx, 0.0)
             trans_amount = row_trans_totals.get(idx, 0.0)
             correct_real = bill_amount + trans_amount + i_total
             if abs(correct_real - current_real) > 0.01:
@@ -1828,7 +1833,7 @@ def sync_all_to_budget(month: str, month_dir: Path) -> dict:
             else:
                 _debug.setdefault("sub_matches", []).append(f"{s_name}({s_val:.2f})→NO MATCH")
 
-        # Apply: recalculate real = bill + trans + inst + sub for each matched row
+        # Apply: recalculate real = bill (Pass1+Pass2) + trans + inst + sub for each matched row
         for idx, s_total in row_sub_totals.items():
             current_real = float(df.at[idx, "real"]) if pd.notna(df.at[idx, "real"]) else 0.0
             bill_amount = 0.0
@@ -1837,6 +1842,7 @@ def sync_all_to_budget(month: str, month_dir: Path) -> dict:
                     b = bills[bi]
                     bill_amount = b["valor_real"] if b["valor_real"] is not None else b.get("valor", 0)
                     break
+            bill_amount += pass2_amounts.get(idx, 0.0)
             trans_amount = row_trans_totals.get(idx, 0.0)
             inst_amount = row_inst_totals.get(idx, 0.0)
             correct_real = bill_amount + trans_amount + inst_amount + s_total
