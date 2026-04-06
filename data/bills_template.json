@@ -126,5 +126,13 @@
     "dia_vencimento": 10,
     "valor": 354.69,
     "ativo": true
+  },
+  {
+    "id": "878ecca1-2764-4e38-8ed3-21709ba45cd0",
+    "nome": "IPTU",
+    "categoria": "Moradia",
+    "dia_vencimento": 10,
+    "valor": 113.39,
+    "ativo": true
   }
 ]
