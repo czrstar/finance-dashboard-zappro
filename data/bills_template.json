@@ -118,5 +118,13 @@
     "dia_vencimento": 10,
     "valor": 2100.0,
     "ativo": true
+  },
+  {
+    "id": "d590fd72-2158-4477-94f6-a882797bd893",
+    "nome": "IPVA",
+    "categoria": "Transporte",
+    "dia_vencimento": 10,
+    "valor": 354.69,
+    "ativo": true
   }
 ]
