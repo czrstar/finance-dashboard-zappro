@@ -17,7 +17,7 @@ Impostos Renato,Gastos profissionais,500.0,0.0,-500.0
 Faxinha,Extra,300.0,0.0,-300.0
 Sofa,Moradia,467.0,467.0,0.0
 Agua,Moradia,120.0,0.0,-120.0
-Energia,Moradia,200.0,113.39,-86.61
+Energia,Moradia,200.0,0.0,-200.0
 Mercado,Alimentação,1700.0,38.33,-1661.67
 Suplementos (2),Alimentação,280.0,0.0,-280.0
 Vitaminas (2),Alimentação,0.0,0.0,0.0
@@ -29,4 +29,4 @@ Comida fora,Extra,150.0,68.8,-81.2
 Gastos inesperados,Extra,800.0,0.0,-800.0
 Carro,Transporte,400.0,354.69,-45.31
 Apartamento,Investimentos,2500.0,900.08,-1599.92
-IPTU,,0.0,0.0,0.0
+IPTU,,0.0,113.39,113.39
