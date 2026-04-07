@@ -799,6 +799,20 @@ def load_settings() -> dict:
                 s["current_month"] = _default_month()
             if "grupos_default" not in s:
                 s["grupos_default"] = GRUPOS_DEFAULT
+            else:
+                # Merge: ensure all GRUPOS_DEFAULT entries are present
+                existing = set(s["grupos_default"])
+                for g in GRUPOS_DEFAULT:
+                    if g not in existing:
+                        # Insert before "Outro" if it exists, else append
+                        if "Outro" in s["grupos_default"]:
+                            idx = s["grupos_default"].index("Outro")
+                            s["grupos_default"].insert(idx, g)
+                        else:
+                            s["grupos_default"].append(g)
+                # Cleanup: remove "Outros" if "Outro" exists (deduplicate)
+                if "Outro" in s["grupos_default"] and "Outros" in s["grupos_default"]:
+                    s["grupos_default"].remove("Outros")
             if "contas_default" not in s:
                 s["contas_default"] = CONTAS_DEFAULT
             return s
