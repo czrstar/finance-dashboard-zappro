@@ -48,7 +48,9 @@ INSTALLMENTS_PATH = Path("data/installments.csv")
 
 GRUPOS_DEFAULT = [
     "Mercado", "Farmácia", "Comida", "Transporte", "Lazer",
-    "Saúde", "Beleza", "Serviço", "Casa", "Outros",
+    "Saúde", "Beleza", "Serviço", "Casa", "Suplementos",
+    "Vitaminas", "Pets", "Entretenimento", "Carro",
+    "Apartamento", "Gastos inesperados", "Outro",
 ]
 CONTAS_DEFAULT = ["Pix", "Cartão Renato", "Cartão Ana", "Dinheiro", "Outro"]
 

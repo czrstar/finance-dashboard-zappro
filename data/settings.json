@@ -10,7 +10,14 @@
     "Beleza",
     "Serviço",
     "Casa",
-    "Outros"
+    "Suplementos",
+    "Vitaminas",
+    "Pets",
+    "Entretenimento",
+    "Carro",
+    "Apartamento",
+    "Gastos inesperados",
+    "Outro"
   ],
   "contas_default": [
     "Pix",
