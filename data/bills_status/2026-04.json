@@ -58,5 +58,9 @@
   "f2fc3da1-f70b-439a-8861-7e8857678c26": {
     "pago": true,
     "valor_real": null
+  },
+  "7d2168cb-cb5b-4268-bf9b-d6cbb79b4162": {
+    "pago": false,
+    "valor_real": 186.42
   }
 }
