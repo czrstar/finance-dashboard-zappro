@@ -68,7 +68,7 @@
     "valor_real": null
   },
   "c1a3f001-1111-4aaa-bbbb-000000000001": {
-    "pago": false,
+    "pago": true,
     "valor_real": 903.0
   }
 }
