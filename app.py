@@ -756,10 +756,10 @@ if page == "📊 Dashboard":
     df_inst = fu.get_installments_for_month(current_month)
 
     # Calculate totals
+    # base_real already includes bills + transactions + installments + subscriptions
+    # via sync_all_to_budget() above (Passes 1-5). Do NOT add trans/inst again.
     base_real = df_base["real"].sum() if not df_base.empty and "real" in df_base.columns else 0.0
-    trans_real = df_trans["valor"].sum() if not df_trans.empty else 0.0
-    inst_real = df_inst["valor_parcela"].sum() if not df_inst.empty else 0.0
-    total_despesas = base_real + trans_real + inst_real
+    total_despesas = base_real
 
     df_receitas = fu.load_receitas(RECEITAS_PATH)
     receita_mes = df_receitas[df_receitas["mes"] == current_month]["valor"].sum() if not df_receitas.empty else 0.0
