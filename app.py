@@ -697,13 +697,12 @@ with st.sidebar.expander("⚙️ Configurações"):
 _sb_receitas = fu.load_receitas(RECEITAS_PATH)
 _sb_rec_mes = _sb_receitas[_sb_receitas["mes"] == current_month]["valor"].sum() if not _sb_receitas.empty else 0.0
 
+# Sync first so base CSV includes everything (bills + trans + inst + subs)
+fu.sync_all_to_budget(current_month, MONTH_DIR)
 _sb_base = fu.safe_load_month_csv(current_month, MONTH_DIR)
-_sb_base_total = _sb_base["real"].sum() if not _sb_base.empty and "real" in _sb_base.columns else 0.0
-_sb_trans = fu.load_transactions(current_month)
-_sb_trans_total = _sb_trans["valor"].sum() if not _sb_trans.empty else 0.0
-_sb_inst = fu.get_installments_for_month(current_month)
-_sb_inst_total = _sb_inst["valor_parcela"].sum() if not _sb_inst.empty else 0.0
-_sb_despesas = _sb_base_total + _sb_trans_total + _sb_inst_total
+# base_real already includes bills + transactions + installments + subscriptions
+# via sync_all_to_budget() above. Do NOT add trans/inst again (fix #96).
+_sb_despesas = _sb_base["real"].sum() if not _sb_base.empty and "real" in _sb_base.columns else 0.0
 _sb_saldo = _sb_rec_mes - _sb_despesas
 
 # Get first/last day of month
@@ -788,20 +787,13 @@ if page == "📊 Dashboard":
 
     with col_chart1:
         st.markdown("#### 🍩 Gastos por Categoria")
-        # Build category data from all sources
+        # Build category data from budget (already synced — includes trans + inst)
+        # Do NOT add df_trans/df_inst separately (fix #96 — double-counting)
         cat_data = {}
         if not df_base.empty and "categoria" in df_base.columns:
             for cat, grp in df_base.groupby("categoria"):
                 if str(cat).strip():
                     cat_data[str(cat)] = cat_data.get(str(cat), 0) + float(grp["real"].sum())
-        if not df_trans.empty and "categoria" in df_trans.columns:
-            for cat, grp in df_trans.groupby("categoria"):
-                if str(cat).strip():
-                    cat_data[str(cat)] = cat_data.get(str(cat), 0) + float(grp["valor"].sum())
-        if not df_inst.empty and "categoria" in df_inst.columns:
-            for cat, grp in df_inst.groupby("categoria"):
-                if str(cat).strip():
-                    cat_data[str(cat)] = cat_data.get(str(cat), 0) + float(grp["valor_parcela"].sum())
 
         if cat_data:
             cat_df = pd.DataFrame([
@@ -868,13 +860,10 @@ if page == "📊 Dashboard":
         for _ in range(5):
             _m_csv_path = MONTH_DIR / f"despesas_{_check}.csv"
             if _m_csv_path.exists():
+                fu.sync_all_to_budget(_check, MONTH_DIR)
                 _m_base = fu.safe_load_month_csv(_check, MONTH_DIR)
-                _m_base_total = _m_base["real"].sum() if not _m_base.empty and "real" in _m_base.columns else 0.0
-                _m_trans = fu.load_transactions(_check)
-                _m_trans_total = _m_trans["valor"].sum() if not _m_trans.empty else 0.0
-                _m_inst = fu.get_installments_for_month(_check)
-                _m_inst_total = _m_inst["valor_parcela"].sum() if not _m_inst.empty else 0.0
-                _m_desp = _m_base_total + _m_trans_total + _m_inst_total
+                # base already includes everything via sync (fix #96)
+                _m_desp = _m_base["real"].sum() if not _m_base.empty and "real" in _m_base.columns else 0.0
                 _m_rec = df_receitas[df_receitas["mes"] == _check]["valor"].sum() if not df_receitas.empty else 0.0
                 if _m_desp > 0 or _m_rec > 0:
                     chart_rows.append({"mes": month_label(_check), "Receitas": _m_rec, "Despesas": _m_desp})
@@ -2167,13 +2156,11 @@ elif page == "📈 Anual":
     rows = []
     for mes in months_with_data:
         df_b = fu.safe_load_month_csv(mes, MONTH_DIR)
+        fu.sync_all_to_budget(mes, MONTH_DIR)
         df_b_v = df_b[(df_b["descricao"].str.len() > 0) & (df_b["categoria"].str.len() > 0)] if not df_b.empty else df_b
         rec_mes = df_receitas[df_receitas["mes"] == mes]["valor"].sum()
-        df_t = fu.load_transactions(mes)
-        trans_real = df_t["valor"].sum() if not df_t.empty else 0.0
-        df_i = fu.get_installments_for_month(mes)
-        inst_real = df_i["valor_parcela"].sum() if not df_i.empty else 0.0
-        total_real_mes = (df_b_v["real"].sum() if not df_b_v.empty else 0.0) + trans_real + inst_real
+        # base already includes everything via sync (fix #96)
+        total_real_mes = df_b_v["real"].sum() if not df_b_v.empty else 0.0
         rows.append({
             "mes": mes, "label": month_label(mes),
             "previsto": df_b_v["previsto"].sum() if not df_b_v.empty else 0.0,
