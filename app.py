@@ -2206,12 +2206,7 @@ elif page == "📈 Anual":
             if not df_b.empty:
                 df_b_v = df_b[(df_b["descricao"].str.len() > 0) & (df_b["categoria"].str.len() > 0)]
                 all_cat_dfs.append(df_b_v[["categoria", "real"]])
-            df_t = fu.load_transactions(mes)
-            if not df_t.empty:
-                all_cat_dfs.append(df_t[["categoria", "valor"]].rename(columns={"valor": "real"}))
-            df_i = fu.get_installments_for_month(mes)
-            if not df_i.empty:
-                all_cat_dfs.append(df_i[["categoria", "valor_parcela"]].rename(columns={"valor_parcela": "real"}))
+
         if all_cat_dfs:
             df_ano = pd.concat(all_cat_dfs, ignore_index=True)
             top_cat = df_ano.groupby("categoria")["real"].sum().sort_values(ascending=False).head(10).reset_index()
