@@ -1735,11 +1735,25 @@ def sync_all_to_budget(month: str, month_dir: Path) -> dict:
                 elif _specific_idx is not None:
                     matched_idx = _specific_idx
 
+            # If no budget row found, auto-create one so the transaction
+            # is counted in totals (prevents silent data loss).
+            if matched_idx is None:
+                orig_cat = str(t.get("categoria", "Extra"))
+                new_row = pd.DataFrame([{
+                    "descricao": t_grupo if t_grupo else orig_cat,
+                    "categoria": orig_cat,
+                    "previsto": 0.0,
+                    "real": 0.0,
+                    "diferenca": 0.0,
+                }])
+                df = pd.concat([df, new_row], ignore_index=True)
+                matched_idx = df.index[-1]
+                changed = True
+                _debug["trans_matches"].append(f"{t_desc}({t_val:.2f})→AUTO-CREATED row (cat={t_cat})")
+
             if matched_idx is not None:
                 row_trans_totals[matched_idx] = row_trans_totals.get(matched_idx, 0.0) + t_val
                 _debug["trans_matches"].append(f"{t_desc}({t_val:.2f})→row[{matched_idx}]={df.at[matched_idx, 'descricao']}")
-            else:
-                _debug["trans_matches"].append(f"{t_desc}({t_val:.2f})→NO MATCH (cat={t_cat})")
 
         # Apply totals: for each budget row, real = bill_amount (Pass1 + Pass2) + transaction_total
         for idx, t_total in row_trans_totals.items():
@@ -1799,6 +1813,24 @@ def sync_all_to_budget(month: str, month_dir: Path) -> dict:
                     matched_idx = _generic_idx
                 elif _specific_idx is not None:
                     matched_idx = _specific_idx
+            # If no budget row found, auto-create one so the installment
+            # is counted in totals (prevents silent data loss).
+            if matched_idx is None:
+                orig_cat = str(i.get("categoria", "Extra"))
+                new_row = pd.DataFrame([{
+                    "descricao": str(i.get("descricao", "Parcelamento")),
+                    "categoria": orig_cat,
+                    "previsto": 0.0,
+                    "real": 0.0,
+                    "diferenca": 0.0,
+                }])
+                df = pd.concat([df, new_row], ignore_index=True)
+                matched_idx = df.index[-1]
+                changed = True
+                _debug.setdefault("inst_auto_rows", []).append(
+                    f"Auto-created row for installment '{i.get('descricao','')}' (cat={orig_cat})"
+                )
+
             if matched_idx is not None:
                 row_inst_totals[matched_idx] = row_inst_totals.get(matched_idx, 0.0) + i_val
 
@@ -1847,11 +1879,26 @@ def sync_all_to_budget(month: str, month_dir: Path) -> dict:
                     matched_idx = idx
                     break
 
+            # If no budget row found, auto-create one
+            if matched_idx is None:
+                s_cat = str(s.get("categoria", "Extra"))
+                new_row = pd.DataFrame([{
+                    "descricao": str(s.get("nome", "Assinatura")),
+                    "categoria": s_cat,
+                    "previsto": 0.0,
+                    "real": 0.0,
+                    "diferenca": 0.0,
+                }])
+                df = pd.concat([df, new_row], ignore_index=True)
+                matched_idx = df.index[-1]
+                changed = True
+                _debug.setdefault("sub_auto_rows", []).append(
+                    f"Auto-created row for subscription '{s.get('nome','')}' (cat={s_cat})"
+                )
+
             if matched_idx is not None:
                 row_sub_totals[matched_idx] = row_sub_totals.get(matched_idx, 0.0) + s_val
                 _debug.setdefault("sub_matches", []).append(f"{s_name}({s_val:.2f})→row[{matched_idx}]={df.at[matched_idx, 'descricao']}")
-            else:
-                _debug.setdefault("sub_matches", []).append(f"{s_name}({s_val:.2f})→NO MATCH")
 
         # Apply: recalculate real = bill (Pass1+Pass2) + trans + inst + sub for each matched row
         for idx, s_total in row_sub_totals.items():
@@ -1934,6 +1981,10 @@ def get_limits_status(month: str, month_dir: Union[str, Path] = MONTH_DIR) -> li
     df_inst = get_installments_for_month(month)
 
     # Aggregate by category
+    # NOTE: df_base["real"] already includes bills + transactions +
+    # installments + subscriptions after sync_all_to_budget().
+    # Do NOT re-add transactions or installments here — that causes
+    # double-counting.
     gastos: dict[str, float] = {}
 
     if not df_base.empty and "categoria" in df_base.columns:
@@ -1942,17 +1993,23 @@ def get_limits_status(month: str, month_dir: Union[str, Path] = MONTH_DIR) -> li
             if cat_str:
                 gastos[cat_str] = gastos.get(cat_str, 0) + float(grp["real"].sum())
 
-    if not df_trans.empty and "categoria" in df_trans.columns:
-        for cat, grp in df_trans.groupby("categoria"):
-            cat_str = str(cat).strip()
-            if cat_str:
-                gastos[cat_str] = gastos.get(cat_str, 0) + float(grp["valor"].sum())
+    # Also count installments/transactions whose categories have NO budget
+    # row at all (they would have been silently dropped by the sync).
+    _budget_cats = set()
+    if not df_base.empty and "categoria" in df_base.columns:
+        _budget_cats = {str(c).strip().lower() for c in df_base["categoria"].dropna().unique()}
 
     if not df_inst.empty and "categoria" in df_inst.columns:
         for cat, grp in df_inst.groupby("categoria"):
             cat_str = str(cat).strip()
-            if cat_str:
+            if cat_str and cat_str.lower() not in _budget_cats:
                 gastos[cat_str] = gastos.get(cat_str, 0) + float(grp["valor_parcela"].sum())
+
+    if not df_trans.empty and "categoria" in df_trans.columns:
+        for cat, grp in df_trans.groupby("categoria"):
+            cat_str = str(cat).strip()
+            if cat_str and cat_str.lower() not in _budget_cats:
+                gastos[cat_str] = gastos.get(cat_str, 0) + float(grp["valor"].sum())
 
     result = []
     for cat, limite in sorted(limits.items()):
