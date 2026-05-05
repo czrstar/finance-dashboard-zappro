@@ -1,45 +1,45 @@
 {
-  "timestamp": "2026-05-05T13:21:08.306615",
+  "timestamp": "2026-05-05T16:05:59.251895",
   "month": "2026-04",
   "receita": 13757.82,
   "totals": {
     "previsto": 11027.0,
-    "real": 22913.97,
-    "diferenca": 11886.97,
-    "pct_usado": 207.8
+    "real": 15733.37,
+    "diferenca": 4706.37,
+    "pct_usado": 142.68
   },
   "por_categoria": {
     "Alimentação": {
       "previsto": 1980.0,
-      "real": 2531.3
+      "real": 1075.21
     },
     "Animais de estimação": {
       "previsto": 150.0,
-      "real": 307.52
+      "real": 153.76
     },
     "Casa": {
       "previsto": 114.0,
-      "real": 178.33
+      "real": 478.33
     },
     "Cuidados pessoais": {
       "previsto": 835.0,
-      "real": 2141.9
+      "real": 1134.32
     },
     "Entretenimento": {
       "previsto": 524.0,
-      "real": 5308.38
+      "real": 2821.19
     },
     "Extra": {
       "previsto": 1348.0,
-      "real": 2992.39
+      "real": 2168.49
     },
     "Gastos profissionais": {
       "previsto": 680.0,
-      "real": 1753.05
+      "real": 1155.05
     },
     "Investimentos": {
       "previsto": 2500.0,
-      "real": 3176.89
+      "real": 3057.54
     },
     "Moradia": {
       "previsto": 2152.0,
@@ -51,67 +51,10 @@
     },
     "Transporte": {
       "previsto": 744.0,
-      "real": 2227.67
-    },
-    "nan": {
-      "previsto": 0.0,
-      "real": 70.24
+      "real": 1463.18
     }
   },
-  "por_grupo": {
-    "Carro": {
-      "previsto": 0.0,
-      "real": 316.49
-    },
-    "Casa": {
-      "previsto": 0.0,
-      "real": 108.66
-    },
-    "Comida": {
-      "previsto": 0.0,
-      "real": 515.59
-    },
-    "Entretenimento": {
-      "previsto": 0.0,
-      "real": 320.6
-    },
-    "Farmácia": {
-      "previsto": 0.0,
-      "real": 464.32
-    },
-    "Gastos inesperados": {
-      "previsto": 0.0,
-      "real": 1480.9
-    },
-    "Lazer": {
-      "previsto": 0.0,
-      "real": 2450.59
-    },
-    "Mercado": {
-      "previsto": 0.0,
-      "real": 748.71
-    },
-    "Pets": {
-      "previsto": 0.0,
-      "real": 110.04
-    },
-    "Saúde": {
-      "previsto": 0.0,
-      "real": 422.75
-    },
-    "Suplementos": {
-      "previsto": 0.0,
-      "real": 113.79
-    },
-    "Transporte": {
-      "previsto": 0.0,
-      "real": 448.0
-    },
-    "nan": {
-      "previsto": 0.0,
-      "real": 98.85
-    }
-  },
+  "por_grupo": {},
   "parcelamentos": [
     {
       "descricao": "Mecânico",
@@ -150,7 +93,7 @@
     }
   ],
   "recorrentes": {
-    "total": 2138.44,
-    "pct_do_total": 9.33
+    "total": 2069.44,
+    "pct_do_total": 13.15
   }
 }
