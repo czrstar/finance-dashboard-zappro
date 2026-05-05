@@ -2152,8 +2152,9 @@ def generate_month_snapshot(
     df_inst_mes: pd.DataFrame,
 ) -> dict:
     """
-    Gera dicionário de snapshot para fechamento do mês.
-    df deve ser o DataFrame combinado (base + transactions + installments).
+    Gera dicionário de snapshot completo para fechamento do mês.
+    df = budget base (com real já sincronizado via sync_all_to_budget).
+    Coleta dados de todas as fontes para o relatório PDF abrangente.
     """
     if df.empty or "descricao" not in df.columns:
         df_v = pd.DataFrame()
@@ -2164,18 +2165,23 @@ def generate_month_snapshot(
     total_real = float(df_v["real"].sum()) if not df_v.empty else 0.0
     diff = total_real - total_prev
     pct = (total_real / total_prev * 100) if total_prev > 0 else 0.0
+    savings_rate = ((receita_mes - total_real) / receita_mes * 100) if receita_mes > 0 else 0.0
 
-    # Por categoria
+    # --- Por categoria ---
     por_cat: dict = {}
     if not df_v.empty and "categoria" in df_v.columns:
         for cat, grp in df_v.groupby("categoria"):
             if str(cat).strip():
+                p = round(float(grp["previsto"].sum()), 2)
+                r = round(float(grp["real"].sum()), 2)
                 por_cat[str(cat)] = {
-                    "previsto": round(float(grp["previsto"].sum()), 2),
-                    "real": round(float(grp["real"].sum()), 2),
+                    "previsto": p,
+                    "real": r,
+                    "diferenca": round(r - p, 2),
+                    "pct_variacao": round(((r - p) / p * 100) if p > 0 else 0, 1),
                 }
 
-    # Por grupo
+    # --- Por grupo ---
     por_grp: dict = {}
     if not df_v.empty and "grupo" in df_v.columns:
         grp_sub = df_v[df_v["grupo"].fillna("").str.strip().str.len() > 0]
@@ -2185,23 +2191,167 @@ def generate_month_snapshot(
                 "real": round(float(grp["real"].sum()), 2),
             }
 
-    # Parcelamentos
+    # --- Top variações (maiores estouros e economias) ---
+    top_variacoes = sorted(
+        [{"cat": k, **v} for k, v in por_cat.items() if v["previsto"] > 0],
+        key=lambda x: abs(x["diferenca"]), reverse=True,
+    )[:7]
+
+    # --- Parcelamentos com detalhes extras ---
     parcelas_list: list = []
+    total_parcelas_restante = 0.0
     if not df_inst_mes.empty:
         for _, row in df_inst_mes.iterrows():
+            p_atual = int(row.get("parcela_atual", 0))
+            p_total = int(row.get("parcelas_total", 0))
+            v_parcela = round(float(row.get("valor_parcela", 0)), 2)
+            restante = (p_total - p_atual) * v_parcela
+            total_parcelas_restante += restante
             parcelas_list.append({
                 "descricao": str(row.get("descricao", "")),
                 "parcela_str": str(row.get("parcela_str", "")),
-                "valor": round(float(row.get("valor_parcela", 0)), 2),
+                "valor": v_parcela,
+                "parcela_atual": p_atual,
+                "parcelas_total": p_total,
+                "restante": round(restante, 2),
             })
 
-    # Recorrentes
-    total_rec = 0.0
-    pct_rec = 0.0
-    if not df_v.empty and "recorrente" in df_v.columns:
-        rec_df = df_v[df_v["recorrente"].fillna(False).astype(bool)]
-        total_rec = float(rec_df["real"].sum())
-        pct_rec = (total_rec / total_real * 100) if total_real > 0 else 0.0
+    # --- Contas fixas (bills) ---
+    bills = sync_bills_for_month(month)
+    bills_list = []
+    total_bills_pago = 0.0
+    total_bills_pendente = 0.0
+    for b in bills:
+        valor = b.get("valor_real") if b.get("valor_real") is not None else b.get("valor", 0)
+        pago = b.get("pago", False)
+        if pago:
+            total_bills_pago += valor
+        else:
+            total_bills_pendente += valor
+        bills_list.append({
+            "nome": b.get("nome", ""),
+            "categoria": b.get("categoria", ""),
+            "valor": round(valor, 2),
+            "pago": pago,
+            "dia": b.get("dia_vencimento", 0),
+        })
+
+    # --- Assinaturas ---
+    subs = load_subscriptions()
+    active_subs = [s for s in subs if s.get("ativo", True)]
+    subs_list = []
+    total_subs = 0.0
+    for s in active_subs:
+        v = float(s.get("valor", 0))
+        total_subs += v
+        subs_list.append({
+            "nome": s.get("nome", ""),
+            "valor": round(v, 2),
+            "categoria": s.get("categoria", "Extra"),
+        })
+
+    # --- Top transações ---
+    trans = load_transactions(month)
+    top_trans = []
+    if not trans.empty and "valor" in trans.columns:
+        top_df = trans.nlargest(10, "valor")
+        for _, t in top_df.iterrows():
+            top_trans.append({
+                "data": str(t.get("data", "")),
+                "descricao": str(t.get("descricao", "")),
+                "categoria": str(t.get("categoria", "")),
+                "valor": round(float(t.get("valor", 0)), 2),
+                "grupo": str(t.get("grupo", "")),
+            })
+
+    # --- Recorrentes (fixos vs variáveis) ---
+    total_fixo = total_bills_pago + total_subs + sum(p["valor"] for p in parcelas_list)
+    total_variavel = max(0, total_real - total_fixo)
+    pct_fixo = (total_fixo / total_real * 100) if total_real > 0 else 0.0
+
+    # --- Histórico (meses anteriores para tendência) ---
+    historico_meses: list = []
+    try:
+        y, m = int(month[:4]), int(month[5:7])
+        for i in range(3, 0, -1):
+            pm = m - i
+            py = y
+            while pm < 1:
+                pm += 12
+                py -= 1
+            prev_month = f"{py:04d}-{pm:02d}"
+            prev_csv = safe_load_month_csv(prev_month, MONTH_DIR)
+            if not prev_csv.empty and "real" in prev_csv.columns:
+                prev_total = float(prev_csv["real"].sum())
+                prev_cats = {}
+                if "categoria" in prev_csv.columns:
+                    for cat, grp in prev_csv.groupby("categoria"):
+                        if str(cat).strip():
+                            prev_cats[str(cat)] = round(float(grp["real"].sum()), 2)
+                prev_receitas = load_receitas(RECEITAS_PATH)
+                prev_rec = float(prev_receitas[prev_receitas["mes"] == prev_month]["valor"].sum()) if not prev_receitas.empty else 0.0
+                historico_meses.append({
+                    "mes": prev_month,
+                    "total_real": round(prev_total, 2),
+                    "receita": round(prev_rec, 2),
+                    "por_categoria": prev_cats,
+                })
+    except Exception:
+        pass
+
+    # --- Mês anterior para comparação ---
+    prev_month_total = historico_meses[-1]["total_real"] if historico_meses else 0.0
+    prev_month_receita = historico_meses[-1]["receita"] if historico_meses else 0.0
+    variacao_mensal = round(((total_real - prev_month_total) / prev_month_total * 100) if prev_month_total > 0 else 0, 1)
+
+    # --- Insights automáticos ---
+    insights: list = []
+    # 1. Categoria com maior estouro
+    estouros = [v for v in top_variacoes if v["diferenca"] > 0]
+    if estouros:
+        top_est = estouros[0]
+        insights.append(
+            f"{top_est['cat']} excedeu o orçamento em R$ {top_est['diferenca']:,.2f} "
+            f"({top_est['pct_variacao']:+.0f}%). Considere revisar o limite mensal."
+        )
+    # 2. Gastos fixos altos
+    if pct_fixo > 70:
+        insights.append(
+            f"Gastos fixos representam {pct_fixo:.0f}% do total. "
+            f"Sua margem de manobra para variáveis é limitada a R$ {total_variavel:,.2f}."
+        )
+    # 3. Saldo negativo
+    saldo = receita_mes - total_real
+    if saldo < 0:
+        insights.append(
+            f"Você gastou R$ {abs(saldo):,.2f} a mais do que recebeu. "
+            f"Avalie cortar gastos variáveis ou aumentar receita."
+        )
+    elif savings_rate > 20:
+        insights.append(
+            f"Taxa de poupança de {savings_rate:.0f}% — excelente! "
+            f"Você poupou R$ {saldo:,.2f} este mês."
+        )
+    # 4. Tendência crescente
+    if variacao_mensal > 15:
+        insights.append(
+            f"Gastos subiram {variacao_mensal:.0f}% vs. mês anterior. "
+            f"Verifique se há despesas pontuais ou um padrão crescente."
+        )
+    # 5. Categorias não utilizadas
+    nao_usadas = [k for k, v in por_cat.items() if v["previsto"] > 0 and v["real"] == 0]
+    if nao_usadas and len(nao_usadas) <= 3:
+        insights.append(
+            f"Categorias orçadas mas não utilizadas: {', '.join(nao_usadas)}. "
+            f"Considere ajustar o orçamento."
+        )
+
+    # --- Projeção próximo mês ---
+    compromissos_prox = total_bills_pendente + total_subs
+    for p in parcelas_list:
+        if p["parcela_atual"] < p["parcelas_total"]:
+            compromissos_prox += p["valor"]
+    sobra_prox = receita_mes - compromissos_prox  # estimate using same receita
 
     return {
         "timestamp": _datetime.now().isoformat(),
@@ -2213,12 +2363,36 @@ def generate_month_snapshot(
             "diferenca": round(diff, 2),
             "pct_usado": round(pct, 2),
         },
+        "saldo": round(receita_mes - total_real, 2),
+        "savings_rate": round(savings_rate, 1),
+        "variacao_mensal": variacao_mensal,
+        "prev_month_total": round(prev_month_total, 2),
         "por_categoria": por_cat,
         "por_grupo": por_grp,
+        "top_variacoes": top_variacoes,
         "parcelamentos": parcelas_list,
+        "total_parcelas_restante": round(total_parcelas_restante, 2),
+        "bills": bills_list,
+        "bills_pago": round(total_bills_pago, 2),
+        "bills_pendente": round(total_bills_pendente, 2),
+        "assinaturas": subs_list,
+        "total_assinaturas": round(total_subs, 2),
+        "total_assinaturas_anual": round(total_subs * 12, 2),
+        "top_transacoes": top_trans,
+        "fixo_vs_variavel": {
+            "fixo": round(total_fixo, 2),
+            "variavel": round(total_variavel, 2),
+            "pct_fixo": round(pct_fixo, 1),
+        },
+        "historico": historico_meses,
         "recorrentes": {
-            "total": round(total_rec, 2),
-            "pct_do_total": round(pct_rec, 2),
+            "total": round(total_fixo, 2),
+            "pct_do_total": round(pct_fixo, 1),
+        },
+        "insights": insights,
+        "projecao_proximo_mes": {
+            "compromissos": round(compromissos_prox, 2),
+            "sobra_estimada": round(sobra_prox, 2),
         },
     }
 
@@ -2235,9 +2409,11 @@ def save_month_snapshot(month: str, snapshot: dict) -> Path:
 
 def generate_month_pdf(month: str, snapshot: dict) -> Path:
     """
-    Gera PDF do relatório mensal em exports/{month}_relatorio.pdf.
-    Usa reportlab + matplotlib (fontes DejaVu do matplotlib para UTF-8).
-    Retorna o Path do arquivo gerado.
+    Gera PDF completo do relatório mensal (4 páginas).
+    Página 1: Resumo executivo + donut
+    Página 2: Análise detalhada + tendências
+    Página 3: Contas, parcelamentos, assinaturas
+    Página 4: Top transações, insights, projeção
     """
     import io as _bio
     import matplotlib as _mpl
@@ -2248,11 +2424,13 @@ def generate_month_pdf(month: str, snapshot: dict) -> Path:
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     from reportlab.lib.units import cm
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
+    from reportlab.platypus import (
+        SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
+        Image, PageBreak, HRFlowable,
+    )
     from reportlab.pdfbase import pdfmetrics
     from reportlab.pdfbase.ttfonts import TTFont
 
-    # Registrar DejaVuSans (incluída no matplotlib) para suporte a acentos
     _mpl_font_dir = Path(_mpl.__file__).parent / "mpl-data" / "fonts" / "ttf"
     _font_name = "Helvetica"
     _font_bold = "Helvetica-Bold"
@@ -2274,8 +2452,8 @@ def generate_month_pdf(month: str, snapshot: dict) -> Path:
 
     doc = SimpleDocTemplate(
         str(pdf_path), pagesize=A4,
-        rightMargin=2 * cm, leftMargin=2 * cm,
-        topMargin=2 * cm, bottomMargin=2 * cm,
+        rightMargin=1.8 * cm, leftMargin=1.8 * cm,
+        topMargin=1.5 * cm, bottomMargin=1.5 * cm,
     )
 
     _ss = getSampleStyleSheet()
@@ -2284,12 +2462,64 @@ def generate_month_pdf(month: str, snapshot: dict) -> Path:
         kw.setdefault("fontName", _font_name)
         return ParagraphStyle(name, parent=_ss["Normal"], **kw)
 
-    sty_title = _ps("rpt_t", fontSize=17, spaceAfter=4, fontName=_font_bold)
-    sty_h2 = _ps("rpt_h2", fontSize=11, spaceBefore=10, spaceAfter=4, fontName=_font_bold)
-    sty_body = _ps("rpt_b", fontSize=9, spaceAfter=2)
-    sty_caption = _ps("rpt_c", fontSize=8, textColor=rl_colors.grey)
+    sty_title = _ps("rpt_t", fontSize=18, spaceAfter=2, fontName=_font_bold)
+    sty_subtitle = _ps("rpt_st", fontSize=10, spaceAfter=8, textColor=rl_colors.HexColor("#666666"))
+    sty_h2 = _ps("rpt_h2", fontSize=12, spaceBefore=12, spaceAfter=6, fontName=_font_bold,
+                  textColor=rl_colors.HexColor("#1B5E40"))
+    sty_h3 = _ps("rpt_h3", fontSize=10, spaceBefore=8, spaceAfter=4, fontName=_font_bold)
+    sty_body = _ps("rpt_b", fontSize=9, spaceAfter=3, leading=13)
+    sty_body_small = _ps("rpt_bs", fontSize=8, spaceAfter=2, leading=11)
+    sty_caption = _ps("rpt_c", fontSize=7.5, textColor=rl_colors.HexColor("#999999"))
+    sty_alert = _ps("rpt_alert", fontSize=9, spaceAfter=4, leading=13,
+                     backColor=rl_colors.HexColor("#FFF3CD"), borderPadding=6)
+    sty_insight = _ps("rpt_ins", fontSize=8.5, spaceAfter=3, leading=12,
+                       leftIndent=10, bulletIndent=0)
+    sty_page_hdr = _ps("rpt_ph", fontSize=8, textColor=rl_colors.HexColor("#AAAAAA"))
+
+    _hdr_green = rl_colors.HexColor("#1B5E40")
+    _hdr_blue = rl_colors.HexColor("#1A56DB")
+    _row_alt = rl_colors.HexColor("#F0F7F0")
+    _green_light = rl_colors.HexColor("#E8F5E9")
+    _red_light = rl_colors.HexColor("#FFEBEE")
+    _green_text = rl_colors.HexColor("#2E7D32")
+    _red_text = rl_colors.HexColor("#C62828")
+
+    def _make_table(data, col_widths, hdr_color=_hdr_green):
+        t = Table(data, colWidths=col_widths)
+        style_cmds = [
+            ("BACKGROUND", (0, 0), (-1, 0), hdr_color),
+            ("TEXTCOLOR", (0, 0), (-1, 0), rl_colors.white),
+            ("FONTNAME", (0, 0), (-1, 0), _font_bold),
+            ("FONTNAME", (0, 1), (-1, -1), _font_name),
+            ("FONTSIZE", (0, 0), (-1, -1), 8),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [rl_colors.white, _row_alt]),
+            ("GRID", (0, 0), (-1, -1), 0.3, rl_colors.HexColor("#CCCCCC")),
+            ("LEFTPADDING", (0, 0), (-1, -1), 6),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+            ("TOPPADDING", (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ]
+        t.setStyle(TableStyle(style_cmds))
+        return t
+
+    def _make_chart(fig):
+        buf = _bio.BytesIO()
+        fig.savefig(buf, format="png", dpi=140, bbox_inches="tight",
+                    facecolor="white", edgecolor="none")
+        plt.close(fig)
+        buf.seek(0)
+        return buf
+
+    def _hr():
+        return HRFlowable(width="100%", thickness=0.5, color=rl_colors.HexColor("#E0E0E0"),
+                          spaceBefore=6, spaceAfter=6)
 
     story: list = []
+    totals = snapshot.get("totals", {})
+    receita = snapshot.get("receita", 0.0)
+    saldo = snapshot.get("saldo", receita - totals.get("real", 0))
+    por_cat = snapshot.get("por_categoria", {})
 
     try:
         from datetime import datetime as _dtt
@@ -2297,136 +2527,377 @@ def generate_month_pdf(month: str, snapshot: dict) -> Path:
     except Exception:
         label = month
 
+    # ===================================================================
+    # PAGE 1: RESUMO EXECUTIVO
+    # ===================================================================
     story.append(Paragraph(f"Relatório Financeiro — {label}", sty_title))
     story.append(Paragraph(
-        f"Gerado em: {snapshot['timestamp'][:19].replace('T', ' ')}",
-        sty_caption,
+        f"Gerado em {snapshot['timestamp'][:19].replace('T', ' ')}",
+        sty_subtitle,
     ))
+
+    # --- KPI Cards as table ---
+    variacao = snapshot.get("variacao_mensal", 0)
+    var_str = f"{'↑' if variacao > 0 else '↓'} {abs(variacao):.0f}% vs mês anterior" if variacao != 0 else "—"
+    savings = snapshot.get("savings_rate", 0)
+    sav_color = _green_text if savings >= 0 else _red_text
+    sal_color = _green_text if saldo >= 0 else _red_text
+
+    kpi_data = [[
+        Paragraph(f"<font size=7 color='#888888'>RECEITA</font><br/>"
+                  f"<font size=14><b>R$ {receita:,.2f}</b></font>", _ps("k1")),
+        Paragraph(f"<font size=7 color='#888888'>DESPESAS</font><br/>"
+                  f"<font size=14 color='#C62828'><b>R$ {totals.get('real', 0):,.2f}</b></font><br/>"
+                  f"<font size=7 color='#888888'>{var_str}</font>", _ps("k2")),
+        Paragraph(f"<font size=7 color='#888888'>SALDO</font><br/>"
+                  f"<font size=14 color='{'#2E7D32' if saldo >= 0 else '#C62828'}'>"
+                  f"<b>R$ {saldo:,.2f}</b></font>", _ps("k3")),
+        Paragraph(f"<font size=7 color='#888888'>POUPANÇA</font><br/>"
+                  f"<font size=14 color='{'#2E7D32' if savings >= 0 else '#C62828'}'>"
+                  f"<b>{savings:.1f}%</b></font>", _ps("k4")),
+    ]]
+    kpi_tbl = Table(kpi_data, colWidths=[4.2 * cm] * 4)
+    kpi_tbl.setStyle(TableStyle([
+        ("BOX", (0, 0), (0, 0), 0.5, rl_colors.HexColor("#E0E0E0")),
+        ("BOX", (1, 0), (1, 0), 0.5, rl_colors.HexColor("#E0E0E0")),
+        ("BOX", (2, 0), (2, 0), 0.5, rl_colors.HexColor("#E0E0E0")),
+        ("BOX", (3, 0), (3, 0), 0.5, rl_colors.HexColor("#E0E0E0")),
+        ("TOPPADDING", (0, 0), (-1, -1), 8),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+        ("LEFTPADDING", (0, 0), (-1, -1), 8),
+        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("BACKGROUND", (0, 0), (-1, -1), rl_colors.HexColor("#FAFAFA")),
+    ]))
+    story.append(kpi_tbl)
     story.append(Spacer(1, 0.4 * cm))
 
-    # --- Resumo ---
-    story.append(Paragraph("Resumo do Mês", sty_h2))
-    totals = snapshot["totals"]
-    receita = snapshot.get("receita", 0.0)
-    saldo = receita - totals["real"]
+    # --- Alert box ---
+    insights = snapshot.get("insights", [])
+    if insights:
+        story.append(Paragraph(f"<b>Destaque:</b> {insights[0]}", sty_alert))
+        story.append(Spacer(1, 0.2 * cm))
 
-    tbl_data = [
-        ["Métrica", "Valor"],
-        ["Receita", f"R$ {receita:,.2f}"],
-        ["Total Previsto", f"R$ {totals['previsto']:,.2f}"],
-        ["Total Real", f"R$ {totals['real']:,.2f}"],
-        ["Diferença (Real − Prev.)", f"R$ {totals['diferenca']:,.2f}"],
-        ["% Orçamento Usado", f"{totals['pct_usado']:.1f}%"],
-        ["Saldo (Receita − Real)", f"R$ {saldo:,.2f}"],
-    ]
-    _hdr_blue = rl_colors.HexColor("#1A56DB")
-    _row_alt = rl_colors.HexColor("#EBF5FB")
-    _tbl_style = TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), _hdr_blue),
-        ("TEXTCOLOR", (0, 0), (-1, 0), rl_colors.white),
-        ("FONTNAME", (0, 0), (-1, 0), _font_bold),
-        ("FONTNAME", (0, 1), (-1, -1), _font_name),
-        ("FONTSIZE", (0, 0), (-1, -1), 9),
-        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [_row_alt, rl_colors.white]),
-        ("GRID", (0, 0), (-1, -1), 0.4, rl_colors.grey),
-        ("ALIGN", (1, 0), (1, -1), "RIGHT"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 7),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 7),
-        ("TOPPADDING", (0, 0), (-1, -1), 4),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-    ])
-    t_sum = Table(tbl_data, colWidths=[9 * cm, 6 * cm])
-    t_sum.setStyle(_tbl_style)
-    story.append(t_sum)
-    story.append(Spacer(1, 0.5 * cm))
-
-    # --- Gráfico 1: Previsto vs Real por Categoria ---
-    por_cat = snapshot.get("por_categoria", {})
+    # --- Donut chart: spending distribution ---
     if por_cat:
-        story.append(Paragraph("Previsto vs Real por Categoria", sty_h2))
-        cats = sorted(por_cat, key=lambda c: por_cat[c]["real"], reverse=True)
-        prevs = [por_cat[c]["previsto"] for c in cats]
-        reals = [por_cat[c]["real"] for c in cats]
-        fig1, ax1 = plt.subplots(figsize=(10, 4))
-        x = range(len(cats))
-        w = 0.38
-        ax1.bar([i - w / 2 for i in x], prevs, w, label="Previsto", color="#636EFA", alpha=0.85)
-        ax1.bar([i + w / 2 for i in x], reals, w, label="Real", color="#EF553B", alpha=0.85)
-        ax1.set_xticks(list(x))
-        ax1.set_xticklabels(cats, rotation=35, ha="right", fontsize=7)
-        ax1.set_ylabel("R$")
-        ax1.yaxis.set_major_formatter(mticker.FuncFormatter(lambda v, _: f"R${v:,.0f}"))
-        ax1.legend(fontsize=8)
-        ax1.grid(axis="y", linestyle="--", alpha=0.4)
-        plt.tight_layout()
-        buf1 = _bio.BytesIO()
-        fig1.savefig(buf1, format="png", dpi=130, bbox_inches="tight")
-        plt.close(fig1)
-        buf1.seek(0)
-        story.append(Image(buf1, width=16 * cm, height=7 * cm))
-        story.append(Spacer(1, 0.3 * cm))
+        story.append(Paragraph("Distribuição de gastos", sty_h2))
+        cats_sorted = sorted(por_cat.items(), key=lambda x: x[1]["real"], reverse=True)
+        cat_labels = [c[0] for c in cats_sorted if c[1]["real"] > 0]
+        cat_values = [c[1]["real"] for c in cats_sorted if c[1]["real"] > 0]
+        if cat_labels:
+            greens = ["#1B5E40", "#2E7D32", "#388E3C", "#43A047", "#4CAF50",
+                      "#66BB6A", "#81C784", "#A5D6A7", "#C8E6C9", "#E8F5E9",
+                      "#B0BEC5", "#90A4AE"]
+            fig_donut, ax_donut = plt.subplots(figsize=(7, 4))
+            wedges, texts, autotexts = ax_donut.pie(
+                cat_values, labels=None, autopct="%1.1f%%",
+                colors=greens[:len(cat_labels)], pctdistance=0.78,
+                wedgeprops=dict(width=0.4, edgecolor="white", linewidth=1.5),
+                startangle=90,
+            )
+            for at in autotexts:
+                at.set_fontsize(7)
+                at.set_color("white")
+                at.set_fontweight("bold")
+            ax_donut.legend(
+                [f"{l} — R$ {v:,.0f}" for l, v in zip(cat_labels, cat_values)],
+                loc="center left", bbox_to_anchor=(1.05, 0.5), fontsize=7,
+                frameon=False,
+            )
+            plt.tight_layout()
+            buf_donut = _make_chart(fig_donut)
+            story.append(Image(buf_donut, width=16.5 * cm, height=7.5 * cm))
 
-    # --- Gráfico 2: Real por Grupo ---
+    # --- Resumo table ---
+    story.append(Spacer(1, 0.3 * cm))
+    summary_data = [
+        ["Métrica", "Valor"],
+        ["Receita total", f"R$ {receita:,.2f}"],
+        ["Total previsto", f"R$ {totals.get('previsto', 0):,.2f}"],
+        ["Total real", f"R$ {totals.get('real', 0):,.2f}"],
+        ["% orçamento usado", f"{totals.get('pct_usado', 0):.1f}%"],
+        ["Saldo (receita - despesas)", f"R$ {saldo:,.2f}"],
+    ]
+    story.append(_make_table(summary_data, [10 * cm, 6.8 * cm]))
+
+    # ===================================================================
+    # PAGE 2: ANÁLISE DETALHADA
+    # ===================================================================
+    story.append(PageBreak())
+    story.append(Paragraph("Análise detalhada", sty_title))
+    story.append(_hr())
+
+    # --- Previsto vs Real chart (semantic colors) ---
+    if por_cat:
+        story.append(Paragraph("Previsto vs real por categoria", sty_h2))
+        cats_by_diff = sorted(por_cat.items(), key=lambda x: x[1].get("diferenca", 0), reverse=True)
+        cat_names = [c[0] for c in cats_by_diff]
+        prevs = [por_cat[c]["previsto"] for c in cat_names]
+        reals = [por_cat[c]["real"] for c in cat_names]
+        bar_colors = ["#E53935" if r > p else "#43A047" for p, r in zip(prevs, reals)]
+
+        fig_bar, ax_bar = plt.subplots(figsize=(10, 4.5))
+        x = range(len(cat_names))
+        w = 0.35
+        ax_bar.bar([i - w / 2 for i in x], prevs, w, label="Previsto", color="#90CAF9", alpha=0.9)
+        bars_real = ax_bar.bar([i + w / 2 for i in x], reals, w, label="Real", color=bar_colors, alpha=0.9)
+        ax_bar.set_xticks(list(x))
+        ax_bar.set_xticklabels(cat_names, rotation=35, ha="right", fontsize=7)
+        ax_bar.set_ylabel("R$", fontsize=8)
+        ax_bar.yaxis.set_major_formatter(mticker.FuncFormatter(lambda v, _: f"R${v:,.0f}"))
+        ax_bar.legend(fontsize=8)
+        ax_bar.grid(axis="y", linestyle="--", alpha=0.3)
+        ax_bar.spines["top"].set_visible(False)
+        ax_bar.spines["right"].set_visible(False)
+        plt.tight_layout()
+        story.append(Image(_make_chart(fig_bar), width=16.5 * cm, height=7.5 * cm))
+        story.append(Paragraph(
+            "<font size=7 color='#888888'>Verde = dentro do orçamento | "
+            "Vermelho = acima do orçamento</font>",
+            sty_caption,
+        ))
+
+    # --- Top variacoes table ---
+    top_var = snapshot.get("top_variacoes", [])
+    if top_var:
+        story.append(Paragraph("Maiores variações do mês", sty_h2))
+        var_data = [["Categoria", "Previsto", "Real", "Diferença", "Variação"]]
+        for v in top_var:
+            diff_val = v.get("diferenca", 0)
+            pct_val = v.get("pct_variacao", 0)
+            var_data.append([
+                v.get("cat", ""),
+                f"R$ {v.get('previsto', 0):,.2f}",
+                f"R$ {v.get('real', 0):,.2f}",
+                f"R$ {diff_val:+,.2f}",
+                f"{pct_val:+.0f}%",
+            ])
+        tbl_var = _make_table(var_data, [4.5 * cm, 3.2 * cm, 3.2 * cm, 3.2 * cm, 2.7 * cm])
+        for i, v in enumerate(top_var):
+            row_idx = i + 1
+            c = _red_light if v.get("diferenca", 0) > 0 else _green_light
+            tc = _red_text if v.get("diferenca", 0) > 0 else _green_text
+            tbl_var.setStyle(TableStyle([
+                ("BACKGROUND", (3, row_idx), (4, row_idx), c),
+                ("TEXTCOLOR", (3, row_idx), (4, row_idx), tc),
+            ]))
+        story.append(tbl_var)
+
+    # --- Trend chart (3 months) ---
+    historico = snapshot.get("historico", [])
+    if historico:
+        story.append(Paragraph("Tendência de gastos (últimos meses)", sty_h2))
+        trend_months = [h["mes"][-5:] for h in historico] + [month[-5:]]
+        trend_totals = [h["total_real"] for h in historico] + [totals.get("real", 0)]
+        trend_receitas = [h.get("receita", 0) for h in historico] + [receita]
+
+        fig_trend, ax_trend = plt.subplots(figsize=(8, 3.5))
+        ax_trend.plot(trend_months, trend_totals, "o-", color="#E53935", linewidth=2,
+                      markersize=6, label="Despesas", zorder=3)
+        ax_trend.plot(trend_months, trend_receitas, "s--", color="#43A047", linewidth=2,
+                      markersize=6, label="Receita", zorder=3)
+        ax_trend.fill_between(trend_months, trend_totals, alpha=0.08, color="#E53935")
+        ax_trend.fill_between(trend_months, trend_receitas, alpha=0.08, color="#43A047")
+        for i, (t, r) in enumerate(zip(trend_totals, trend_receitas)):
+            ax_trend.annotate(f"R${t:,.0f}", (trend_months[i], t),
+                              textcoords="offset points", xytext=(0, 10), ha="center", fontsize=7)
+        ax_trend.yaxis.set_major_formatter(mticker.FuncFormatter(lambda v, _: f"R${v:,.0f}"))
+        ax_trend.legend(fontsize=8, loc="upper left")
+        ax_trend.grid(axis="y", linestyle="--", alpha=0.3)
+        ax_trend.spines["top"].set_visible(False)
+        ax_trend.spines["right"].set_visible(False)
+        plt.tight_layout()
+        story.append(Image(_make_chart(fig_trend), width=16 * cm, height=6.5 * cm))
+
+    # --- Fixo vs Variável ---
+    fv = snapshot.get("fixo_vs_variavel", {})
+    if fv:
+        story.append(Paragraph("Composição: fixo vs variável", sty_h2))
+        fig_fv, ax_fv = plt.subplots(figsize=(6, 2))
+        fixo_val = fv.get("fixo", 0)
+        var_val = fv.get("variavel", 0)
+        total = fixo_val + var_val
+        if total > 0:
+            ax_fv.barh([""], [fixo_val], color="#1B5E40", label=f"Fixo R$ {fixo_val:,.0f}", height=0.5)
+            ax_fv.barh([""], [var_val], left=[fixo_val], color="#81C784",
+                       label=f"Variável R$ {var_val:,.0f}", height=0.5)
+            ax_fv.set_xlim(0, total * 1.05)
+            ax_fv.xaxis.set_major_formatter(mticker.FuncFormatter(lambda v, _: f"R${v:,.0f}"))
+            ax_fv.legend(fontsize=8, loc="upper right")
+            ax_fv.spines["top"].set_visible(False)
+            ax_fv.spines["right"].set_visible(False)
+            ax_fv.spines["left"].set_visible(False)
+            ax_fv.set_yticks([])
+            plt.tight_layout()
+            story.append(Image(_make_chart(fig_fv), width=14 * cm, height=3.5 * cm))
+        else:
+            plt.close(fig_fv)
+        story.append(Paragraph(
+            f"Gastos fixos representam <b>{fv.get('pct_fixo', 0):.0f}%</b> do total. "
+            f"Margem para variáveis: <b>R$ {var_val:,.2f}</b>.",
+            sty_body,
+        ))
+
+    # ===================================================================
+    # PAGE 3: CONTAS E COMPROMISSOS
+    # ===================================================================
+    story.append(PageBreak())
+    story.append(Paragraph("Contas e compromissos", sty_title))
+    story.append(_hr())
+
+    # --- Bills ---
+    bills = snapshot.get("bills", [])
+    if bills:
+        story.append(Paragraph("Contas fixas", sty_h2))
+        bills_data = [["Conta", "Categoria", "Dia", "Valor", "Status"]]
+        for b in sorted(bills, key=lambda x: x.get("dia", 0)):
+            status = "Pago" if b.get("pago") else "Pendente"
+            bills_data.append([
+                b.get("nome", ""),
+                b.get("categoria", ""),
+                str(b.get("dia", "")),
+                f"R$ {b.get('valor', 0):,.2f}",
+                status,
+            ])
+        bills_data.append([
+            Paragraph(f"<b>Total</b>", _ps("bt")),
+            "", "",
+            Paragraph(f"<b>R$ {snapshot.get('bills_pago', 0) + snapshot.get('bills_pendente', 0):,.2f}</b>", _ps("bv")),
+            Paragraph(f"<font color='#2E7D32'>Pago: R$ {snapshot.get('bills_pago', 0):,.2f}</font> | "
+                      f"<font color='#C62828'>Pend: R$ {snapshot.get('bills_pendente', 0):,.2f}</font>",
+                      _ps("bs", fontSize=7)),
+        ])
+        tbl_bills = _make_table(bills_data, [4.5 * cm, 3 * cm, 1.5 * cm, 3.5 * cm, 4.3 * cm])
+        for i, b in enumerate(sorted(bills, key=lambda x: x.get("dia", 0))):
+            if b.get("pago"):
+                tbl_bills.setStyle(TableStyle([
+                    ("TEXTCOLOR", (4, i + 1), (4, i + 1), _green_text),
+                ]))
+            else:
+                tbl_bills.setStyle(TableStyle([
+                    ("TEXTCOLOR", (4, i + 1), (4, i + 1), _red_text),
+                ]))
+        story.append(tbl_bills)
+
+    # --- Installments ---
+    parcelas = snapshot.get("parcelamentos", [])
+    if parcelas:
+        story.append(Paragraph("Parcelamentos ativos", sty_h2))
+        parc_data = [["Descrição", "Parcela", "Valor", "Restante"]]
+        for p_ in parcelas:
+            parc_data.append([
+                str(p_.get("descricao", "")),
+                str(p_.get("parcela_str", "")),
+                f"R$ {p_.get('valor', 0):,.2f}",
+                f"R$ {p_.get('restante', 0):,.2f}",
+            ])
+        parc_data.append([
+            Paragraph("<b>Total restante em parcelamentos</b>", _ps("pt")),
+            "", "",
+            Paragraph(f"<b>R$ {snapshot.get('total_parcelas_restante', 0):,.2f}</b>", _ps("pv")),
+        ])
+        story.append(_make_table(parc_data, [5.5 * cm, 3 * cm, 3.7 * cm, 4.6 * cm]))
+
+    # --- Subscriptions ---
+    subs = snapshot.get("assinaturas", [])
+    if subs:
+        story.append(Paragraph("Assinaturas e serviços", sty_h2))
+        subs_data = [["Serviço", "Categoria", "Mensal", "Anual"]]
+        for s in sorted(subs, key=lambda x: x.get("valor", 0), reverse=True):
+            subs_data.append([
+                s.get("nome", ""),
+                s.get("categoria", ""),
+                f"R$ {s.get('valor', 0):,.2f}",
+                f"R$ {s.get('valor', 0) * 12:,.2f}",
+            ])
+        subs_data.append([
+            Paragraph(f"<b>{len(subs)} assinaturas</b>", _ps("st")),
+            "",
+            Paragraph(f"<b>R$ {snapshot.get('total_assinaturas', 0):,.2f}</b>", _ps("sv")),
+            Paragraph(f"<b>R$ {snapshot.get('total_assinaturas_anual', 0):,.2f}</b>", _ps("sa")),
+        ])
+        story.append(_make_table(subs_data, [5 * cm, 3.5 * cm, 4.1 * cm, 4.2 * cm]))
+
+    # ===================================================================
+    # PAGE 4: INSIGHTS E PROJEÇÃO
+    # ===================================================================
+    story.append(PageBreak())
+    story.append(Paragraph("Insights e próximo mês", sty_title))
+    story.append(_hr())
+
+    # --- Top transactions ---
+    top_trans = snapshot.get("top_transacoes", [])
+    if top_trans:
+        story.append(Paragraph("Maiores transações do mês", sty_h2))
+        trans_data = [["Data", "Descrição", "Categoria", "Valor"]]
+        for t in top_trans:
+            trans_data.append([
+                t.get("data", "")[-5:] if len(t.get("data", "")) >= 5 else t.get("data", ""),
+                t.get("descricao", ""),
+                t.get("categoria", ""),
+                f"R$ {t.get('valor', 0):,.2f}",
+            ])
+        story.append(_make_table(trans_data, [2.5 * cm, 6.5 * cm, 4 * cm, 3.8 * cm]))
+
+    # --- Real por Grupo ---
     por_grp = snapshot.get("por_grupo", {})
     grp_items = sorted(
         [(k, v["real"]) for k, v in por_grp.items() if v["real"] > 0],
         key=lambda x: x[1], reverse=True,
     )
     if grp_items:
-        story.append(Paragraph("Real por Grupo", sty_h2))
+        story.append(Paragraph("Gastos por grupo", sty_h2))
         glabels = [g[0] for g in grp_items]
         gvals = [g[1] for g in grp_items]
-        fig2, ax2 = plt.subplots(figsize=(8, max(3, len(glabels) * 0.45)))
-        ax2.barh(glabels[::-1], gvals[::-1], color="#00CC96", alpha=0.85)
-        ax2.set_xlabel("R$")
-        ax2.xaxis.set_major_formatter(mticker.FuncFormatter(lambda v, _: f"R${v:,.0f}"))
-        ax2.grid(axis="x", linestyle="--", alpha=0.4)
+        fig_grp, ax_grp = plt.subplots(figsize=(8, max(2.5, len(glabels) * 0.4)))
+        bars = ax_grp.barh(glabels[::-1], gvals[::-1], color="#1B5E40", alpha=0.85, height=0.6)
+        for bar, val in zip(bars, gvals[::-1]):
+            ax_grp.text(bar.get_width() + max(gvals) * 0.02, bar.get_y() + bar.get_height() / 2,
+                        f"R$ {val:,.0f}", va="center", fontsize=7)
+        ax_grp.set_xlim(0, max(gvals) * 1.2)
+        ax_grp.xaxis.set_major_formatter(mticker.FuncFormatter(lambda v, _: f"R${v:,.0f}"))
+        ax_grp.spines["top"].set_visible(False)
+        ax_grp.spines["right"].set_visible(False)
         plt.tight_layout()
-        buf2 = _bio.BytesIO()
-        fig2.savefig(buf2, format="png", dpi=130, bbox_inches="tight")
-        plt.close(fig2)
-        buf2.seek(0)
-        h2 = min(8, max(3.5, len(glabels) * 0.5 + 1))
-        story.append(Image(buf2, width=13 * cm, height=h2 * cm))
+        h_grp = min(7, max(3, len(glabels) * 0.45 + 1))
+        story.append(Image(_make_chart(fig_grp), width=15 * cm, height=h_grp * cm))
+
+    # --- Insights ---
+    if insights:
+        story.append(Paragraph("Recomendações", sty_h2))
+        for idx, ins in enumerate(insights):
+            bullet = ["◆", "◇", "▸", "▹", "●"][idx % 5]
+            story.append(Paragraph(f"{bullet}  {ins}", sty_insight))
         story.append(Spacer(1, 0.3 * cm))
 
-    # --- Recorrentes ---
-    story.append(Paragraph("Recorrentes / Fixos", sty_h2))
-    rec = snapshot.get("recorrentes", {})
-    story.append(Paragraph(
-        f"Total recorrentes: R$ {rec.get('total', 0):,.2f} "
-        f"({rec.get('pct_do_total', 0):.1f}% do gasto total)",
-        sty_body,
-    ))
-    story.append(Spacer(1, 0.3 * cm))
+    # --- Next month projection ---
+    proj = snapshot.get("projecao_proximo_mes", {})
+    if proj:
+        story.append(Paragraph("Projeção para o próximo mês", sty_h2))
+        proj_data = [
+            ["", "Valor"],
+            ["Compromissos já confirmados (contas + parcelas + assinaturas)",
+             f"R$ {proj.get('compromissos', 0):,.2f}"],
+            ["Sobra estimada para variáveis",
+             f"R$ {proj.get('sobra_estimada', 0):,.2f}"],
+            ["Receita base (mesmo mês atual)",
+             f"R$ {receita:,.2f}"],
+        ]
+        story.append(_make_table(proj_data, [12.5 * cm, 4.3 * cm]))
+        story.append(Spacer(1, 0.3 * cm))
+        story.append(Paragraph(
+            "<i>Projeção baseada nos compromissos fixos atuais e receita do mês corrente. "
+            "Valores podem variar com novas despesas ou alterações de receita.</i>",
+            sty_caption,
+        ))
 
-    # --- Parcelamentos ---
-    parcelas = snapshot.get("parcelamentos", [])
-    if parcelas:
-        story.append(Paragraph("Parcelamentos Ativos no Mês", sty_h2))
-        parc_data = [["Descrição", "Parcela", "Valor"]]
-        for p_ in parcelas:
-            parc_data.append([
-                str(p_.get("descricao", "")),
-                str(p_.get("parcela_str", "")),
-                f"R$ {p_.get('valor', 0):,.2f}",
-            ])
-        t_parc = Table(parc_data, colWidths=[9 * cm, 3 * cm, 4 * cm])
-        t_parc.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, 0), _hdr_blue),
-            ("TEXTCOLOR", (0, 0), (-1, 0), rl_colors.white),
-            ("FONTNAME", (0, 0), (-1, 0), _font_bold),
-            ("FONTNAME", (0, 1), (-1, -1), _font_name),
-            ("FONTSIZE", (0, 0), (-1, -1), 9),
-            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [_row_alt, rl_colors.white]),
-            ("GRID", (0, 0), (-1, -1), 0.4, rl_colors.grey),
-            ("ALIGN", (2, 0), (2, -1), "RIGHT"),
-            ("LEFTPADDING", (0, 0), (-1, -1), 7),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 7),
-            ("TOPPADDING", (0, 0), (-1, -1), 4),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-        ]))
-        story.append(t_parc)
+    # --- Footer ---
+    story.append(Spacer(1, 1 * cm))
+    story.append(_hr())
+    story.append(Paragraph(
+        f"Relatório gerado automaticamente — Finanças Pessoais v12",
+        sty_caption,
+    ))
 
     doc.build(story)
     return pdf_path
