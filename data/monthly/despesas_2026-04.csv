@@ -21,7 +21,7 @@ Energia,Moradia,200.0,186.42,-13.580000000000013
 Mercado,Alimentação,1700.0,748.71,-951.29
 Suplementos (2),Alimentação,280.0,326.5,46.5
 Pets,Animais de estimação,150.0,153.76,3.759999999999991
-Cuidados pessoais extra,Cuidados pessoais,150.0,369.0,219.0
+Cuidados pessoais extra,Cuidados pessoais,150.0,329.0,179.0
 Entretenimento,Entretenimento,400.0,2697.19,2297.19
 Farmacia,Cuidados pessoais,150.0,464.32000000000005,314.32000000000005
 Comida fora,Extra,150.0,515.59,365.59000000000003
@@ -29,3 +29,6 @@ Gastos inesperados,Extra,800.0,1480.9,680.9000000000001
 Carro,Transporte,400.0,1119.18,719.1800000000001
 Apartamento,Investimentos,2500.0,3057.54,557.54
 IPTU,Casa,114.0,113.39,-0.6099999999999994
+casa,Casa,0.0,64.94,64.94
+nan,nan,0.0,49.5,49.5
+Exames Ana,Saúde,0.0,93.75,93.75
