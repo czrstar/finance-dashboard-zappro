@@ -4,3 +4,4 @@ id,data,descricao,nota,categoria,grupo,valor,conta_cartao,recorrente
 cf3a26dd-b652-4253-8313-cd791bd77707,2026-05-01,Ifood,,Alimentação,Comida,7.89,Cartão Ana,False
 f1177c54-454a-49db-b91e-0604533377f4,2026-05-01,Pica Pau,,Alimentação,Comida,41.0,Cartão Ana,False
 b7f7c95d-13cd-4f9b-a09a-0aeeefdeae7c,2026-05-05,Padaria,,Alimentação,Mercado,16.78,Cartão Ana,False
+256cad05-079a-4d90-bec3-eda8a5250c74,2026-05-05,Papelaria,Caneta Agaya,,Gastos inesperados,9.95,Cartão Ana,False
