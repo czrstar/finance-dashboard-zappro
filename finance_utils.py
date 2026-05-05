@@ -617,12 +617,46 @@ def available_months_with_data(month_dir: Union[str, Path] = MONTH_DIR) -> list[
     return sorted(months)
 
 
+def ensure_month_budget(month: str, month_dir: Union[str, Path] = MONTH_DIR) -> bool:
+    """
+    Auto-create budget CSV for *month* if it doesn't exist yet.
+    Copies the most recent previous month's budget with real values reset to 0.
+    Returns True if a new file was created.
+    """
+    p = Path(month_dir) / f"despesas_{month}.csv"
+    if p.exists():
+        return False
+
+    # Find the most recent previous month that has a budget file
+    avail = sorted(available_months(Path(month_dir)))
+    prev = [m for m in avail if m < month]
+    if not prev:
+        return False  # no previous month to copy from
+
+    src_month = prev[-1]
+    src_path = Path(month_dir) / f"despesas_{src_month}.csv"
+    try:
+        df = load_month_csv(src_path)
+        # Reset real values to 0 for the new month
+        if "real" in df.columns:
+            df["real"] = 0.0
+        if "diferenca" in df.columns:
+            df["diferenca"] = -pd.to_numeric(df["previsto"], errors="coerce").fillna(0.0)
+        save_budget_csv(month, df, Path(month_dir))
+        return True
+    except Exception:
+        return False
+
+
 def safe_load_month_csv(month: str, month_dir: Union[str, Path] = MONTH_DIR) -> pd.DataFrame:
     """
     Carrega CSV base do mês e aplica overrides.
     Retorna DataFrame vazio (com schema correto) se arquivo não existir.
+    Auto-cria o arquivo a partir do mês anterior se necessário.
     """
     p = Path(month_dir) / f"despesas_{month}.csv"
+    if not p.exists():
+        ensure_month_budget(month, month_dir)
     if not p.exists():
         return pd.DataFrame(columns=_BASE_EMPTY_COLS)
     try:
