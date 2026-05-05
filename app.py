@@ -24,7 +24,7 @@ cloud_storage.sync_from_cloud()
 # Configuração da página
 # ---------------------------------------------------------------------------
 
-_APP_VERSION = "v12"
+_APP_VERSION = "v13"
 
 # Master category list — single source of truth for all pages
 MASTER_CATS = [
