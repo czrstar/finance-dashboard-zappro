@@ -2062,60 +2062,24 @@ elif page == "📋 Relatório":
                     for _c in ("grupo", "conta_cartao", "nota"):
                         if _c not in _rel_base.columns: _rel_base[_c] = ""
                     if not _rel_base.empty:
-                        _rel_base["_source"] = "base"
                         if "parcelado" not in _rel_base.columns: _rel_base["parcelado"] = False
                         if "parcela_str" not in _rel_base.columns: _rel_base["parcela_str"] = ""
+                        if "recorrente" not in _rel_base.columns: _rel_base["recorrente"] = False
 
-                    _rel_trans = fu.load_transactions(mes_rel)
-                    _rel_trans_rows = []
-                    for _, _t in _rel_trans.iterrows():
-                        _td = str(_t.get("descricao", "")).strip()
-                        _tn = str(_t.get("nota", "")).strip()
-                        _rel_trans_rows.append({
-                            "descricao": _td if _td else _tn,
-                            "nota": _tn,
-                            "categoria": str(_t.get("categoria", "")),
-                            "grupo": str(_t.get("grupo", "")),
-                            "previsto": 0.0,
-                            "real": float(_t.get("valor", 0)),
-                            "diferenca": float(_t.get("valor", 0)),
-                            "recorrente": bool(_t.get("recorrente", False)),
-                            "conta_cartao": str(_t.get("conta_cartao", "")),
-                            "parcelado": False, "parcela_str": "", "_source": "transaction",
-                        })
+                    # NOTE: _rel_base["real"] already includes synced
+                    # transactions + installments from sync_all_to_budget().
+                    # Do NOT add them again -- that causes double-counting.
+                    _df_rel = _rel_base.copy() if not _rel_base.empty else pd.DataFrame()
+                    if not _df_rel.empty:
+                        for _c in ("descricao", "categoria", "grupo", "conta_cartao", "nota", "parcela_str"):
+                            if _c in _df_rel.columns:
+                                _df_rel[_c] = _df_rel[_c].fillna("").astype(str).str.strip()
+                        for _c in ("previsto", "real", "diferenca"):
+                            if _c in _df_rel.columns:
+                                _df_rel[_c] = pd.to_numeric(_df_rel[_c], errors="coerce").fillna(0.0)
+                        _df_rel["recorrente"] = _df_rel["recorrente"].fillna(False).astype(bool)
 
                     _rel_inst = fu.get_installments_for_month(mes_rel)
-                    _rel_inst_rows = []
-                    for _, _i in _rel_inst.iterrows():
-                        _rel_inst_rows.append({
-                            "descricao": str(_i.get("descricao", "")),
-                            "nota": str(_i.get("nota", "")),
-                            "categoria": str(_i.get("categoria", "")),
-                            "grupo": str(_i.get("grupo", "")),
-                            "previsto": 0.0,
-                            "real": float(_i.get("valor_parcela", 0)),
-                            "diferenca": float(_i.get("valor_parcela", 0)),
-                            "recorrente": False,
-                            "conta_cartao": str(_i.get("conta_cartao", "")),
-                            "parcelado": True,
-                            "parcela_str": str(_i.get("parcela_str", "")),
-                            "_source": "installment",
-                        })
-
-                    _rel_parts = []
-                    if not _rel_base.empty: _rel_parts.append(_rel_base)
-                    if _rel_trans_rows: _rel_parts.append(pd.DataFrame(_rel_trans_rows))
-                    if _rel_inst_rows: _rel_parts.append(pd.DataFrame(_rel_inst_rows))
-
-                    if _rel_parts:
-                        _df_rel = pd.concat(_rel_parts, ignore_index=True)
-                        for _c in ("descricao", "categoria", "grupo", "conta_cartao", "nota", "parcela_str"):
-                            _df_rel[_c] = _df_rel[_c].fillna("").astype(str).str.strip()
-                        for _c in ("previsto", "real", "diferenca"):
-                            _df_rel[_c] = pd.to_numeric(_df_rel[_c], errors="coerce").fillna(0.0)
-                        _df_rel["recorrente"] = _df_rel["recorrente"].fillna(False).astype(bool)
-                    else:
-                        _df_rel = pd.DataFrame()
 
                     _rel_receitas = fu.load_receitas(RECEITAS_PATH)
                     _rel_receita = float(_rel_receitas[_rel_receitas["mes"] == mes_rel]["valor"].sum() if not _rel_receitas.empty else 0.0)
