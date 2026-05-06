@@ -50,16 +50,6 @@
     "ativo": true
   },
   {
-    "id": "70534382-6a4d-4a41-9625-a06590ca7b67",
-    "nome": "Academia (2)",
-    "valor": 199.0,
-    "dia_desconto": 1,
-    "site": "",
-    "email": "",
-    "obs": "2 planos",
-    "ativo": true
-  },
-  {
     "id": "5ecee258-24cd-4750-b73d-55d77622fa96",
     "nome": "Academia (Gympass)",
     "valor": 184.0,
