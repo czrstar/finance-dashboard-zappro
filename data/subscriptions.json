@@ -58,5 +58,15 @@
     "email": "",
     "obs": "2 planos",
     "ativo": true
+  },
+  {
+    "id": "5ecee258-24cd-4750-b73d-55d77622fa96",
+    "nome": "Academia (Gympass)",
+    "valor": 184.0,
+    "dia_desconto": 10,
+    "site": "",
+    "email": "",
+    "obs": "",
+    "ativo": true
   }
 ]
