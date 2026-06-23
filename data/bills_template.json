@@ -134,5 +134,13 @@
     "dia_vencimento": 10,
     "valor": 113.39,
     "ativo": true
+  },
+  {
+    "id": "41722b91-2976-4f53-9225-c826e0dcf4e4",
+    "nome": "Franquia seguro",
+    "categoria": "Outro",
+    "dia_vencimento": 25,
+    "valor": 289.4,
+    "ativo": true
   }
 ]
