@@ -142,5 +142,13 @@
     "dia_vencimento": 25,
     "valor": 289.4,
     "ativo": true
+  },
+  {
+    "id": "1b7913fb-6065-470b-a2f9-ccbb15ce4d2b",
+    "nome": "Cartao Ana Rita (emprestimos)",
+    "categoria": "Outro",
+    "dia_vencimento": 10,
+    "valor": 2443.0,
+    "ativo": true
   }
 ]
