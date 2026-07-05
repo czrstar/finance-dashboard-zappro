@@ -1,0 +1,548 @@
+{
+  "timestamp": "2026-07-05T13:25:08.377378",
+  "month": "2026-06",
+  "receita": 13547.03,
+  "totals": {
+    "previsto": 10913.0,
+    "real": 16622.1,
+    "diferenca": 5709.1,
+    "pct_usado": 152.31
+  },
+  "saldo": -3075.07,
+  "savings_rate": -22.7,
+  "variacao_mensal": -5.0,
+  "prev_month_total": 17491.52,
+  "por_categoria": {
+    "Alimentação": {
+      "previsto": 1980.0,
+      "real": 2308.42,
+      "diferenca": 328.42,
+      "pct_variacao": 16.6
+    },
+    "Animais de estimação": {
+      "previsto": 150.0,
+      "real": 403.69,
+      "diferenca": 253.69,
+      "pct_variacao": 169.1
+    },
+    "Casa": {
+      "previsto": 0.0,
+      "real": 300.0,
+      "diferenca": 300.0,
+      "pct_variacao": 0
+    },
+    "Cuidados pessoais": {
+      "previsto": 835.0,
+      "real": 3363.22,
+      "diferenca": 2528.22,
+      "pct_variacao": 302.8
+    },
+    "Entretenimento": {
+      "previsto": 524.0,
+      "real": 727.2,
+      "diferenca": 203.2,
+      "pct_variacao": 38.8
+    },
+    "Extra": {
+      "previsto": 1348.0,
+      "real": 828.08,
+      "diferenca": -519.92,
+      "pct_variacao": -38.6
+    },
+    "Gastos profissionais": {
+      "previsto": 680.0,
+      "real": 884.05,
+      "diferenca": 204.05,
+      "pct_variacao": 30.0
+    },
+    "Investimentos": {
+      "previsto": 0.0,
+      "real": 3807.39,
+      "diferenca": 3807.39,
+      "pct_variacao": 0
+    },
+    "Moradia": {
+      "previsto": 2152.0,
+      "real": 2240.41,
+      "diferenca": 88.41,
+      "pct_variacao": 4.1
+    },
+    "Poupanças": {
+      "previsto": 2500.0,
+      "real": 0.0,
+      "diferenca": -2500.0,
+      "pct_variacao": -100.0
+    },
+    "Saúde": {
+      "previsto": 0.0,
+      "real": 676.53,
+      "diferenca": 676.53,
+      "pct_variacao": 0
+    },
+    "Transporte": {
+      "previsto": 744.0,
+      "real": 748.69,
+      "diferenca": 4.69,
+      "pct_variacao": 0.6
+    },
+    "Vestuário": {
+      "previsto": 0.0,
+      "real": 84.42,
+      "diferenca": 84.42,
+      "pct_variacao": 0
+    }
+  },
+  "por_grupo": {},
+  "top_variacoes": [
+    {
+      "cat": "Cuidados pessoais",
+      "previsto": 835.0,
+      "real": 3363.22,
+      "diferenca": 2528.22,
+      "pct_variacao": 302.8
+    },
+    {
+      "cat": "Poupanças",
+      "previsto": 2500.0,
+      "real": 0.0,
+      "diferenca": -2500.0,
+      "pct_variacao": -100.0
+    },
+    {
+      "cat": "Extra",
+      "previsto": 1348.0,
+      "real": 828.08,
+      "diferenca": -519.92,
+      "pct_variacao": -38.6
+    },
+    {
+      "cat": "Alimentação",
+      "previsto": 1980.0,
+      "real": 2308.42,
+      "diferenca": 328.42,
+      "pct_variacao": 16.6
+    },
+    {
+      "cat": "Animais de estimação",
+      "previsto": 150.0,
+      "real": 403.69,
+      "diferenca": 253.69,
+      "pct_variacao": 169.1
+    },
+    {
+      "cat": "Gastos profissionais",
+      "previsto": 680.0,
+      "real": 884.05,
+      "diferenca": 204.05,
+      "pct_variacao": 30.0
+    },
+    {
+      "cat": "Entretenimento",
+      "previsto": 524.0,
+      "real": 727.2,
+      "diferenca": 203.2,
+      "pct_variacao": 38.8
+    }
+  ],
+  "parcelamentos": [
+    {
+      "descricao": "Airbnb Praia",
+      "parcela_str": "4/6",
+      "valor": 87.0,
+      "parcela_atual": 4,
+      "parcelas_total": 6,
+      "restante": 174.0
+    },
+    {
+      "descricao": "Airbnb SP",
+      "parcela_str": "4/4",
+      "valor": 115.2,
+      "parcela_atual": 4,
+      "parcelas_total": 4,
+      "restante": 0.0
+    },
+    {
+      "descricao": "Airbnb TW",
+      "parcela_str": "4/6",
+      "valor": 129.0,
+      "parcela_atual": 4,
+      "parcelas_total": 6,
+      "restante": 258.0
+    },
+    {
+      "descricao": "Óculos",
+      "parcela_str": "2/2",
+      "valor": 84.42,
+      "parcela_atual": 2,
+      "parcelas_total": 2,
+      "restante": 0.0
+    },
+    {
+      "descricao": "Embalagens (AGAYA)",
+      "parcela_str": "2/2",
+      "valor": 169.62,
+      "parcela_atual": 2,
+      "parcelas_total": 2,
+      "restante": 0.0
+    },
+    {
+      "descricao": "Tags (AGAYA)",
+      "parcela_str": "2/2",
+      "valor": 175.0,
+      "parcela_atual": 2,
+      "parcelas_total": 2,
+      "restante": 0.0
+    },
+    {
+      "descricao": "Maquina Etiquetas (AGAYA)",
+      "parcela_str": "2/10",
+      "valor": 52.5,
+      "parcela_atual": 2,
+      "parcelas_total": 10,
+      "restante": 420.0
+    },
+    {
+      "descricao": "Farma Flora",
+      "parcela_str": "2/3",
+      "valor": 44.42,
+      "parcela_atual": 2,
+      "parcelas_total": 3,
+      "restante": 44.42
+    },
+    {
+      "descricao": "Remedios renato",
+      "parcela_str": "2/2",
+      "valor": 146.15,
+      "parcela_atual": 2,
+      "parcelas_total": 2,
+      "restante": 0.0
+    },
+    {
+      "descricao": "Produtos AGAYA",
+      "parcela_str": "2/10",
+      "valor": 290.25,
+      "parcela_atual": 2,
+      "parcelas_total": 10,
+      "restante": 2322.0
+    },
+    {
+      "descricao": "Exame Ana",
+      "parcela_str": "1/3",
+      "valor": 262.0,
+      "parcela_atual": 1,
+      "parcelas_total": 3,
+      "restante": 524.0
+    },
+    {
+      "descricao": "Comedouro Automático",
+      "parcela_str": "1/3",
+      "valor": 71.69,
+      "parcela_atual": 1,
+      "parcelas_total": 3,
+      "restante": 143.38
+    }
+  ],
+  "total_parcelas_restante": 3885.8,
+  "bills": [
+    {
+      "nome": "Pagamento de Veículo",
+      "categoria": "Transporte",
+      "valor": 344.0,
+      "pago": true,
+      "dia": 5
+    },
+    {
+      "nome": "Aluguel",
+      "categoria": "Moradia",
+      "valor": 1200.0,
+      "pago": true,
+      "dia": 10
+    },
+    {
+      "nome": "Sofá (parcela)",
+      "categoria": "Moradia",
+      "valor": 467.0,
+      "pago": true,
+      "dia": 10
+    },
+    {
+      "nome": "Internet + Plano Móvel",
+      "categoria": "Moradia",
+      "valor": 179.43,
+      "pago": true,
+      "dia": 15
+    },
+    {
+      "nome": "Conta de Água",
+      "categoria": "Moradia",
+      "valor": 103.9,
+      "pago": true,
+      "dia": 20
+    },
+    {
+      "nome": "Conta de Luz",
+      "categoria": "Moradia",
+      "valor": 176.69,
+      "pago": true,
+      "dia": 20
+    },
+    {
+      "nome": "Luz ADM",
+      "categoria": "Moradia",
+      "valor": 50.0,
+      "pago": false,
+      "dia": 20
+    },
+    {
+      "nome": "Impostos Renato",
+      "categoria": "Gastos profissionais",
+      "valor": 630.0,
+      "pago": true,
+      "dia": 20
+    },
+    {
+      "nome": "MEI Ana",
+      "categoria": "Gastos profissionais",
+      "valor": 86.05,
+      "pago": true,
+      "dia": 20
+    },
+    {
+      "nome": "Faxina",
+      "categoria": "Casa",
+      "valor": 300.0,
+      "pago": true,
+      "dia": 25
+    },
+    {
+      "nome": "Corte de Cabelo Renato",
+      "categoria": "Cuidados pessoais",
+      "valor": 109.0,
+      "pago": true,
+      "dia": 15
+    },
+    {
+      "nome": "IPTV",
+      "categoria": "Entretenimento",
+      "valor": 35.0,
+      "pago": false,
+      "dia": 10
+    },
+    {
+      "nome": "Suplementos",
+      "categoria": "Saúde",
+      "valor": 196.0,
+      "pago": true,
+      "dia": 10
+    },
+    {
+      "nome": "Evoluçao de Obra",
+      "categoria": "Investimentos",
+      "valor": 1006.0,
+      "pago": true,
+      "dia": 10
+    },
+    {
+      "nome": "Entrada AP",
+      "categoria": "Investimentos",
+      "valor": 2114.02,
+      "pago": true,
+      "dia": 10
+    },
+    {
+      "nome": "IPVA",
+      "categoria": "Transporte",
+      "valor": 354.69,
+      "pago": true,
+      "dia": 10
+    },
+    {
+      "nome": "IPTU",
+      "categoria": "Moradia",
+      "valor": 113.39,
+      "pago": true,
+      "dia": 10
+    },
+    {
+      "nome": "Franquia seguro",
+      "categoria": "Outro",
+      "valor": 289.4,
+      "pago": true,
+      "dia": 25
+    },
+    {
+      "nome": "Cartao Ana Rita (emprestimos)",
+      "categoria": "Outro",
+      "valor": 2443.0,
+      "pago": true,
+      "dia": 10
+    }
+  ],
+  "bills_pago": 10112.57,
+  "bills_pendente": 85.0,
+  "assinaturas": [
+    {
+      "nome": "Spotify",
+      "valor": 31.0,
+      "categoria": "Extra"
+    },
+    {
+      "nome": "ChatGPT",
+      "valor": 99.0,
+      "categoria": "Extra"
+    },
+    {
+      "nome": "Apple iCloud",
+      "valor": 67.0,
+      "categoria": "Extra"
+    },
+    {
+      "nome": "Meli+",
+      "valor": 89.0,
+      "categoria": "Extra"
+    },
+    {
+      "nome": "Cartão de Todos",
+      "valor": 33.0,
+      "categoria": "Extra"
+    },
+    {
+      "nome": "Academia (Gympass)",
+      "valor": 184.0,
+      "categoria": "Extra"
+    }
+  ],
+  "total_assinaturas": 503.0,
+  "total_assinaturas_anual": 6036.0,
+  "top_transacoes": [
+    {
+      "data": "2026-06-18",
+      "descricao": "Paulistao",
+      "categoria": "Alimentação",
+      "valor": 537.02,
+      "grupo": "Mercado"
+    },
+    {
+      "data": "2026-06-30",
+      "descricao": "Carnes",
+      "categoria": "Alimentação",
+      "valor": 233.0,
+      "grupo": "Mercado"
+    },
+    {
+      "data": "2026-06-20",
+      "descricao": "Baduca",
+      "categoria": "Alimentação",
+      "valor": 209.0,
+      "grupo": "Comida"
+    },
+    {
+      "data": "2026-06-12",
+      "descricao": "Carnes",
+      "categoria": "Alimentação",
+      "valor": 204.79,
+      "grupo": "Mercado"
+    },
+    {
+      "data": "2026-06-11",
+      "descricao": "Prado Carnes",
+      "categoria": "Alimentação",
+      "valor": 204.79,
+      "grupo": "Mercado"
+    },
+    {
+      "data": "2026-06-09",
+      "descricao": "Banho Princesa",
+      "categoria": "Animais de estimação",
+      "valor": 160.0,
+      "grupo": "Pets"
+    },
+    {
+      "data": "2026-06-20",
+      "descricao": "Savegnago",
+      "categoria": "Alimentação",
+      "valor": 156.89,
+      "grupo": "Mercado"
+    },
+    {
+      "data": "2026-06-30",
+      "descricao": "Princesa remedios",
+      "categoria": "Animais de estimação",
+      "valor": 154.0,
+      "grupo": "Pets"
+    },
+    {
+      "data": "2026-06-20",
+      "descricao": "Alcool",
+      "categoria": "Transporte",
+      "valor": 150.0,
+      "grupo": "Transporte"
+    },
+    {
+      "data": "2026-06-20",
+      "descricao": "Drogafarma",
+      "categoria": "Saúde",
+      "valor": 142.09,
+      "grupo": "Farmácia"
+    }
+  ],
+  "fixo_vs_variavel": {
+    "fixo": 12242.82,
+    "variavel": 4379.28,
+    "pct_fixo": 73.7
+  },
+  "historico": [
+    {
+      "mes": "2026-04",
+      "total_real": 15733.37,
+      "receita": 13757.82,
+      "por_categoria": {
+        "Alimentação": 1075.21,
+        "Animais de estimação": 153.76,
+        "Casa": 478.33,
+        "Cuidados pessoais": 1134.32,
+        "Entretenimento": 2821.19,
+        "Extra": 2168.49,
+        "Gastos profissionais": 1155.05,
+        "Investimentos": 3057.54,
+        "Moradia": 2132.55,
+        "Saúde": 93.75,
+        "Transporte": 1463.18
+      }
+    },
+    {
+      "mes": "2026-05",
+      "total_real": 17491.52,
+      "receita": 14680.0,
+      "por_categoria": {
+        "Alimentação": 2938.05,
+        "Animais de estimação": 49.0,
+        "Casa": 355.0,
+        "Cuidados pessoais": 750.01,
+        "Entretenimento": 1322.51,
+        "Extra": 3809.96,
+        "Gastos profissionais": 805.05,
+        "Investimentos": 3837.71,
+        "Moradia": 2216.86,
+        "Poupanças": 0.0,
+        "Saúde": 314.32,
+        "Transporte": 898.69,
+        "Vestuário": 84.42
+      }
+    }
+  ],
+  "recorrentes": {
+    "total": 12242.82,
+    "pct_do_total": 73.7
+  },
+  "insights": [
+    "Cuidados pessoais excedeu o orçamento em R$ 2,528.22 (+303%). Considere revisar o limite mensal.",
+    "Gastos fixos representam 74% do total. Sua margem de manobra para variáveis é limitada a R$ 4,379.28.",
+    "Você gastou R$ 3,075.07 a mais do que recebeu. Avalie cortar gastos variáveis ou aumentar receita.",
+    "Categorias orçadas mas não utilizadas: Poupanças. Considere ajustar o orçamento."
+  ],
+  "projecao_proximo_mes": {
+    "compromissos": 1524.86,
+    "sobra_estimada": 12022.17
+  }
+}
