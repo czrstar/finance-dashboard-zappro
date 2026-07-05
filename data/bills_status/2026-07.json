@@ -10,5 +10,9 @@
   "878ecca1-2764-4e38-8ed3-21709ba45cd0": {
     "pago": true,
     "valor_real": null
+  },
+  "789bb1d7-8d2d-40ac-a269-219f55459e8a": {
+    "pago": false,
+    "valor_real": 144.0
   }
 }
