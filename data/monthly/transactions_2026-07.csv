@@ -3,3 +3,4 @@ id,data,descricao,nota,categoria,grupo,valor,conta_cartao,recorrente
 4a9a27be-0ecb-432a-a960-5e415a9ec176,2026-07-05,PO,,Alimentação,Comida,55.5,Cartão Renato,False
 a09f48e8-a727-4311-935e-1b51778ee30b,2026-07-05,Bar do ademir,,Entretenimento,Lazer,19.0,Cartão Renato,False
 c1d79a24-3531-436f-b519-a8984ba141be,2026-07-05,Farmacia,,Saúde,Farmácia,102.72,Cartão Renato,False
+fb217f16-6994-4b01-a9a1-12c921959ee2,2026-07-05,Patrocinio,,Alimentação,Mercado,20.51,Cartão Renato,False
