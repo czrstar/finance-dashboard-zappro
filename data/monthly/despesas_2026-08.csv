@@ -1,7 +1,7 @@
 descricao,categoria,previsto,real,diferenca
 Aluguel/IPTU,Moradia,1200.0,0.0,-1200.0
 Internet + plano movel (2),Moradia,165.0,142.87,-22.129999999999995
-Pagamento de veiculo,Transporte,344.0,0.0,-344.0
+Pagamento de veiculo,Transporte,344.0,344.0,0.0
 Corte de cabelo Renato,Cuidados pessoais,109.0,0.0,-109.0
 Unhas Ana,Cuidados pessoais,77.0,0.0,-77.0
 Academia (2) (cartão),Cuidados pessoais,199.0,184.0,-15.0
