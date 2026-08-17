@@ -28,7 +28,7 @@
     "valor_real": null
   },
   "1b7913fb-6065-470b-a2f9-ccbb15ce4d2b": {
-    "pago": false,
+    "pago": true,
     "valor_real": 2743.0
   }
 }
