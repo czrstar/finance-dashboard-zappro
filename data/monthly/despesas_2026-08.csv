@@ -18,7 +18,7 @@ Faxinha,Extra,300.0,0.0,-300.0
 Sofa,Moradia,467.0,467.0,0.0
 Agua,Moradia,120.0,0.0,-120.0
 Energia,Moradia,200.0,289.99,89.99000000000001
-Mercado,Alimentação,1700.0,952.6000000000001,-747.3999999999999
+Mercado,Alimentação,1700.0,952.6,-747.4
 Suplementos (2),Alimentação,280.0,315.0,35.0
 Vitaminas (2),Alimentação,0.0,0.0,0.0
 Pets,Animais de estimação,150.0,280.63,130.63
@@ -30,7 +30,7 @@ Gastos inesperados,Extra,800.0,232.68,-567.3199999999999
 Carro,Transporte,400.0,454.69,54.69
 Apartamento,Poupanças,2500.0,0.0,-2500.0
 Exames Ana,Saúde,0.0,450.57,450.57
-Liquidificador,Casa,0.0,0.0,0.0
+Liquidificador,Casa,0.0,300.0,300.0
 Óculos,Vestuário,0.0,0.0,0.0
 Embalagens (AGAYA),Investimentos,0.0,3600.0,3600.0
 transporte,,0.0,0.0,0.0
