@@ -1676,6 +1676,7 @@ def sync_all_to_budget(month: str, month_dir: Path) -> dict:
     # so Pass 3 can include them when computing the final real value.
     pass2_amounts: dict[int, float] = {}
     unmatched_bills_by_cat: dict[str, float] = {}
+    unmatched_cat_label: dict[str, str] = {}
     for bi, b in enumerate(bills):
         if bi in bill_matched or not b["pago"]:
             continue
@@ -1684,8 +1685,10 @@ def sync_all_to_budget(month: str, month_dir: Path) -> dict:
             continue
         valor = b["valor_real"] if b["valor_real"] is not None else b.get("valor", 0)
         unmatched_bills_by_cat[cat_norm] = unmatched_bills_by_cat.get(cat_norm, 0.0) + valor
+        unmatched_cat_label.setdefault(cat_norm, str(b.get("categoria", "")).strip())
 
     for cat_norm, total_valor in unmatched_bills_by_cat.items():
+        _pass2_found = False
         for idx, row in df.iterrows():
             if idx in reserved_rows:
                 continue
@@ -1694,7 +1697,32 @@ def sync_all_to_budget(month: str, month_dir: Path) -> dict:
                 df.at[idx, "real"] = total_valor
                 changed = True
                 pass2_amounts[idx] = total_valor
+                _pass2_found = True
                 break
+        # If no budget row exists for this category, auto-create one so the
+        # paid bill(s) are still counted in totals. Bills (Pass 1/2) were the
+        # only expense source WITHOUT this safeguard, which caused silent data
+        # loss for a paid bill whose category has no budget row (e.g. "Outro"
+        # -> "Franquia seguro"). Mirrors the transaction / installment /
+        # subscription auto-create logic in the passes below.
+        if not _pass2_found:
+            cat_label = unmatched_cat_label.get(cat_norm) or "Outro"
+            new_row = pd.DataFrame([{
+                "descricao": cat_label,
+                "categoria": cat_label,
+                "previsto": 0.0,
+                "real": total_valor,
+                "diferenca": 0.0,
+            }])
+            df = pd.concat([df, new_row], ignore_index=True)
+            new_idx = df.index[-1]
+            pass2_amounts[new_idx] = total_valor
+            reserved_rows.add(new_idx)
+            changed = True
+            _debug.setdefault("bill_auto_rows", []).append(
+                f"Auto-created row for unmatched paid bill category "
+                f"'{cat_label}' (total={total_valor:.2f})"
+            )
 
     # 2. Build transaction totals by category (for rows not matched to any bill)
     trans = load_transactions(month)
