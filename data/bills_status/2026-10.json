@@ -14,5 +14,9 @@
   "c1a3f002-2222-4bbb-cccc-000000000002": {
     "pago": true,
     "valor_real": 110.0
+  },
+  "174819de-c5d1-428d-aabc-b71b088a0bce": {
+    "pago": false,
+    "valor_real": 1450.0
   }
 }
