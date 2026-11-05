@@ -16,14 +16,6 @@
     "ativo": true
   },
   {
-    "id": "e442edfe-69d1-4f8a-9b6d-8b6c88284b61",
-    "nome": "Sofá (parcela)",
-    "categoria": "Moradia",
-    "dia_vencimento": 10,
-    "valor": 467.0,
-    "ativo": true
-  },
-  {
     "id": "789bb1d7-8d2d-40ac-a269-219f55459e8a",
     "nome": "Internet + Plano Móvel",
     "categoria": "Moradia",
